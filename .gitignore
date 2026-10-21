@@ -1,0 +1,88 @@
+# ============================================================
+# Nexus-Gateway Monorepo — Root .gitignore
+# ============================================================
+# This file covers BOTH /backend and /frontend workspaces.
+# Sub-directory .gitignore files add workspace-specific rules.
+# ============================================================
+
+# ----- Node.js Dependencies (both workspaces) -----
+node_modules/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ----- Environment Secrets — NEVER COMMIT -----
+# These files contain private keys, DB credentials, RPC URLs.
+# In production, load secrets from a vault (AWS Secrets Manager,
+# HashiCorp Vault, GCP Secret Manager, etc.).
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.staging
+
+# ----- Backend Build Output -----
+backend/dist/
+backend/build/
+
+# ----- Next.js Build Output -----
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# ----- Logs -----
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# ----- Runtime / Cache -----
+.cache/
+.turbo/
+.vercel/
+.eslintcache
+
+# ----- TypeScript Incremental Build -----
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ----- OS Artifacts -----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ----- IDE / Editor -----
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ----- Test Coverage -----
+coverage/
+.nyc_output/
+
+# ----- SSL / PEM Secrets -----
+*.pem
+*.key
+*.cert
+*.p12
+
+# ----- Database local config -----
+*.sqlite
+*.sqlite3
+data/
+dump/

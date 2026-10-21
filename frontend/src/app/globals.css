@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --background: #090d16;
+  --foreground: #f3f4f6;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  min-height: 100vh;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Custom glow and backdrop effects */
+.crypto-card {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crypto-glow-bsc {
+  box-shadow: 0 0 25px -5px rgba(243, 186, 47, 0.25);
+}
+
+.crypto-glow-tron {
+  box-shadow: 0 0 25px -5px rgba(235, 0, 41, 0.25);
+}
+
+.crypto-glow-success {
+  box-shadow: 0 0 35px -5px rgba(34, 197, 94, 0.35);
+}

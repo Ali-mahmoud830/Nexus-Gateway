@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment secrets — NEVER commit
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript build info
+*.tsbuildinfo
