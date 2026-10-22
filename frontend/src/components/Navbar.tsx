@@ -97,17 +97,15 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* External Docs / API Status */}
-        <div className="flex items-center gap-2 text-xs">
-          <a
-            href="https://nexus-gateway-backend-2n4s.onrender.com/api/v1/health"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+        {/* Right Action Links */}
+        <div className="flex items-center gap-2.5 text-xs">
+          <Link
+            href="/admin"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/30 text-cyan-300 font-bold transition-all shadow-sm shadow-cyan-500/10 cursor-pointer"
           >
-            <span>API Telemetry</span>
-            <ExternalLink className="w-3 h-3 text-cyan-400" />
-          </a>
+            <Shield className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Admin Center</span>
+          </Link>
         </div>
       </div>
     </header>

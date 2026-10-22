@@ -62,8 +62,11 @@ export async function createInvoice(
     // 2. Generate unique temporary deposit address
     const derived = await generateDepositAddress(network);
 
-    // 3. Format expected crypto amount (USDT is pegged 1:1 with USD)
-    const expectedCryptoAmount = amount.toFixed(6);
+    // 3. Dynamic network gas fee surcharge (Customer covers network gas)
+    // TRON requires ~15-20 TRX energy burn ($2.50). BSC requires ~0.0004 BNB gas ($0.30).
+    const networkGasFee = network === CryptoNetwork.TRON ? 2.50 : 0.30;
+    const totalExpected = amount + networkGasFee;
+    const expectedCryptoAmount = totalExpected.toFixed(6);
 
     // 4. Calculate 15-minute expiration window
     const expiresAt = new Date(Date.now() + env.invoice.expiryMinutes * 60 * 1000);
@@ -76,6 +79,8 @@ export async function createInvoice(
       invoiceId,
       userId: userId.trim(),
       fiatAmount: amount,
+      baseAmount: amount,
+      feeAmount: networkGasFee,
       fiatCurrency: 'USD',
       cryptoCurrency: CryptoCurrency.USDT,
       network,
@@ -100,7 +105,9 @@ export async function createInvoice(
       userId: invoice.userId,
       network: invoice.network,
       depositAddress: invoice.depositAddress,
-      amount: invoice.expectedCryptoAmount,
+      baseAmount: invoice.baseAmount,
+      feeAmount: invoice.feeAmount,
+      totalExpected: invoice.expectedCryptoAmount,
     });
 
     sendSuccess(
@@ -109,6 +116,8 @@ export async function createInvoice(
         invoiceId: invoice.invoiceId,
         depositAddress: invoice.depositAddress,
         expectedCryptoAmount: invoice.expectedCryptoAmount,
+        baseAmount: invoice.baseAmount,
+        feeAmount: invoice.feeAmount,
         cryptoCurrency: invoice.cryptoCurrency,
         network: invoice.network,
         status: invoice.status,
@@ -200,6 +209,8 @@ export async function getInvoiceStatus(
       invoiceId: invoice.invoiceId,
       depositAddress: invoice.depositAddress,
       expectedCryptoAmount: invoice.expectedCryptoAmount,
+      baseAmount: invoice.baseAmount || invoice.fiatAmount,
+      feeAmount: invoice.feeAmount || 0,
       paidCryptoAmount: invoice.paidCryptoAmount,
       cryptoCurrency: invoice.cryptoCurrency,
       network: invoice.network,

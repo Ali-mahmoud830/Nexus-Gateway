@@ -83,8 +83,9 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
   };
 
   const feeInfo = NETWORK_FEES[activeInvoice.network];
-  const baseAmount = parseFloat(activeInvoice.expectedCryptoAmount);
-  const networkGas = feeInfo.feeUsdt;
+  const feeAmount = activeInvoice.feeAmount ?? feeInfo.feeUsdt;
+  const totalAmount = parseFloat(activeInvoice.expectedCryptoAmount);
+  const baseAmount = activeInvoice.baseAmount ?? Math.max(0, totalAmount - feeAmount);
   const requiredConfirmations = activeInvoice.network === CryptoNetwork.BSC ? 3 : 20;
 
   return (
@@ -233,19 +234,15 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
             {showFeeDetails && (
               <div className="mt-2.5 pt-2 border-t border-gray-800/80 space-y-1.5 text-[11px] text-gray-400 animate-in fade-in duration-200">
                 <div className="flex justify-between">
-                  <span>Trading Deposit Amount</span>
-                  <span className="font-mono text-gray-200">${baseAmount.toFixed(2)} USD</span>
+                  <span>Trading Deposit (Credited to User)</span>
+                  <span className="font-mono text-gray-200">${baseAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{feeInfo.protocolBadge} Network Gas Est.</span>
-                  <span className="font-mono text-gray-300">~${networkGas.toFixed(2)} USD</span>
-                </div>
-                <div className="flex justify-between text-emerald-400">
-                  <span>Platform Fee Subsidization</span>
-                  <span className="font-mono">-${networkGas.toFixed(2)} (100% Free)</span>
+                  <span>{feeInfo.protocolBadge} Blockchain Gas & Routing</span>
+                  <span className="font-mono text-amber-400">+${feeAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-gray-800 font-semibold text-gray-200">
-                  <span>Net Amount to Send</span>
+                  <span>Total Amount Expected</span>
                   <span className="font-mono text-cyan-300">
                     {activeInvoice.expectedCryptoAmount} USDT
                   </span>

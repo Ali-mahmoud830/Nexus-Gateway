@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import healthRouter from './health';
 import invoiceRouter from './invoiceRoutes';
+import adminRouter from './adminRoutes';
 
 const router = Router();
 
@@ -18,5 +19,8 @@ router.use('/health', healthRouter);
 
 // Invoice management & status queries
 router.use('/invoices', invoiceRouter);
+
+// Secure Admin Command Center
+router.use('/admin', adminRouter);
 
 export default router;

@@ -35,6 +35,8 @@ export interface InvoiceDetails {
   invoiceId: string;
   depositAddress: string;
   expectedCryptoAmount: string;
+  baseAmount?: number;
+  feeAmount?: number;
   paidCryptoAmount?: string;
   cryptoCurrency: CryptoCurrency;
   network: CryptoNetwork;
@@ -92,3 +94,42 @@ export interface ApiResponse<T> {
     message: string;
   };
 }
+
+export interface AdminGasStationInfo {
+  address: string;
+  nativeBalance: string;
+  nativeCurrency: string;
+  status: 'HEALTHY' | 'LOW';
+}
+
+export interface AdminOverviewData {
+  metrics: {
+    totalVolumeUsdt: string;
+    todayVolumeUsdt: string;
+    totalFeesCollectedUsdt: string;
+    totalInvoices: number;
+    statusCounts: Record<string, number>;
+  };
+  gasStation: {
+    bsc: AdminGasStationInfo;
+    tron: AdminGasStationInfo;
+  };
+  system: {
+    uptimeSeconds: number;
+    timestamp: string;
+    nodeEnv: string;
+  };
+}
+
+export interface AdminApiKey {
+  keyId: string;
+  name: string;
+  keyPrefix: string;
+  rawKey?: string;
+  scopes: string[];
+  isActive: boolean;
+  totalRequests: number;
+  lastUsedAt?: string;
+  createdAt: string;
+}
+

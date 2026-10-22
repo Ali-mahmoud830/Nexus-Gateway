@@ -71,10 +71,12 @@ export interface IInvoice {
   invoiceId: string;           // Unique public identifier (e.g. inv_xxxxxxxxxxxx)
   userId: string;              // External User ID from binary options platform
   fiatAmount: number;          // Nominal requested amount in USD (e.g. 50.00)
+  baseAmount?: number;         // Base trading deposit amount in USD
+  feeAmount?: number;          // Network gas fee surcharge in USD/USDT
   fiatCurrency: string;        // Fiat currency reference (default: 'USD')
   cryptoCurrency: CryptoCurrency;
   network: CryptoNetwork;
-  expectedCryptoAmount: string;// Exact crypto token amount expected (e.g. "50.000000")
+  expectedCryptoAmount: string;// Exact crypto token amount expected (e.g. "52.500000")
   paidCryptoAmount: string;    // Actual verified crypto token amount received
   depositAddress: string;      // Unique derived temporary wallet address
   derivationIndex: number;     // BIP-44 key derivation index used to derive depositAddress
@@ -192,6 +194,16 @@ const invoiceSchema = new Schema<IInvoiceDocument, IInvoiceModel>(
       type: Number,
       required: [true, 'Fiat amount is required'],
       min: [0.01, 'Fiat amount must be greater than 0'],
+    },
+    baseAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    feeAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     fiatCurrency: {
       type: String,
