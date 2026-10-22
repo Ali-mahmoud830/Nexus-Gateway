@@ -50,8 +50,13 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
   });
 
   const activeInvoice = invoice || initialInvoice;
-  const isConfirmed = activeInvoice.status === InvoiceStatus.CONFIRMED;
-  const isExpired = activeInvoice.status === InvoiceStatus.EXPIRED;
+  const isConfirmed =
+    activeInvoice.status === InvoiceStatus.CONFIRMED ||
+    activeInvoice.status === ('FORWARDED' as InvoiceStatus) ||
+    activeInvoice.status === ('FORWARDING' as InvoiceStatus) ||
+    parseFloat(activeInvoice.paidCryptoAmount || '0') > 0 ||
+    !!activeInvoice.txHash;
+  const isExpired = activeInvoice.status === InvoiceStatus.EXPIRED && !isConfirmed;
 
   // Web3 One-Click Payment hook
   const {

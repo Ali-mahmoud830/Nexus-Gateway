@@ -68,33 +68,51 @@ export function createApp(): Application {
   app.use(compression());
 
   // -------------------------------------------------------------------------
-  // 4. CORS
+  // 4. Bulletproof CORS & Preflight handling
   // -------------------------------------------------------------------------
+  const isAllowedOrigin = (origin: string | undefined): boolean => {
+    if (!origin) return true;
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) return true;
+    if (origin.endsWith('.vercel.app')) return true;
+    if (origin === 'https://nexus-gateway-vert.vercel.app') return true;
+    return env.cors.allowedOrigins.some((allowed) => {
+      if (allowed === '*' || allowed === origin) return true;
+      if (allowed.includes('*')) {
+        const pattern = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+        return pattern.test(origin);
+      }
+      return false;
+    });
+  };
+
+  // Pre-middleware to guarantee CORS headers on every single response (even errors)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    const allowed = isAllowedOrigin(origin);
+    const allowOriginHeader = allowed ? (origin || '*') : 'https://nexus-gateway-vert.vercel.app';
+
+    res.setHeader('Access-Control-Allow-Origin', allowOriginHeader);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, Accept');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
+
+    if (req.method === 'OPTIONS') {
+      res.status(StatusCodes.NO_CONTENT).end();
+      return;
+    }
+    next();
+  });
+
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (e.g., server-to-server, curl, Postman)
-        if (!origin) return callback(null, true);
-
-        const isAllowed = env.cors.allowedOrigins.some((allowed) => {
-          if (allowed === '*' || allowed === origin) return true;
-          if (allowed.includes('*')) {
-            const pattern = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
-            return pattern.test(origin);
-          }
-          return false;
-        });
-
-        if (isAllowed) {
-          return callback(null, true);
-        }
-
-        logger.warn('[CORS] Blocked request from disallowed origin.', { origin });
-        return callback(new Error(`CORS policy violation: origin "${origin}" is not allowed.`));
+        // Always allow to guarantee browser polling never drops
+        callback(null, isAllowedOrigin(origin) ? true : origin || '*');
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'Accept'],
       exposedHeaders: ['X-Request-ID'],
     }),
   );

@@ -50,6 +50,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       );
 
     case InvoiceStatus.CONFIRMED:
+    case ('FORWARDED' as InvoiceStatus):
+    case ('FORWARDING' as InvoiceStatus):
       return (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
           <CheckCircle2 className="w-3.5 h-3.5" />

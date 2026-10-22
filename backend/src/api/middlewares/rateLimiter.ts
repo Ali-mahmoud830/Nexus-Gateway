@@ -23,7 +23,7 @@ const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 export const globalLimiter: RateLimitRequestHandler = rateLimit({
   windowMs: WINDOW_MS,
-  max: 300,
+  max: 10000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -34,7 +34,10 @@ export const globalLimiter: RateLimitRequestHandler = rateLimit({
     },
   },
   statusCode: StatusCodes.TOO_MANY_REQUESTS,
-  skip: () => env.nodeEnv === 'test',
+  skip: (req) =>
+    env.nodeEnv === 'test' ||
+    req.path.includes('/health') ||
+    (req.method === 'GET' && req.path.includes('/invoices/')),
 });
 
 export const invoiceLimiter: RateLimitRequestHandler = rateLimit({

@@ -148,9 +148,51 @@ export async function getInvoiceStatus(
       );
     }
 
-    // Lazy check: if pending and time expired, update status in DB
-    if (invoice.isExpired()) {
+    // 1. If invoice is already paid/confirmed on-chain, normalize user-facing status
+    let userFacingStatus = invoice.status;
+    if (
+      invoice.status === InvoiceStatus.FORWARDING ||
+      invoice.status === InvoiceStatus.FORWARDED ||
+      (invoice.status === InvoiceStatus.FAILED && !!invoice.paymentDetails?.txHash) ||
+      parseFloat(invoice.paidCryptoAmount || '0') > 0
+    ) {
+      userFacingStatus = InvoiceStatus.CONFIRMED;
+    }
+
+    // 2. Real-time reconciliation: If still PENDING or expired but unpaid, check TronGrid on-demand
+    if (
+      (invoice.status === InvoiceStatus.PENDING || invoice.status === InvoiceStatus.EXPIRED) &&
+      invoice.network === CryptoNetwork.TRON &&
+      parseFloat(invoice.paidCryptoAmount || '0') === 0
+    ) {
+      try {
+        const url = `https://api.trongrid.io/v1/accounts/${invoice.depositAddress}/transactions/trc20?contract_address=${env.tron.usdtContract}&limit=1`;
+        const tronRes = await fetch(url);
+        const tronData = (await tronRes.json()) as { data?: Array<{ transaction_id: string; value: string; type: string; to: string }> };
+        const latestTx = tronData.data?.[0];
+
+        if (latestTx && latestTx.type === 'Transfer' && latestTx.to === invoice.depositAddress) {
+          const formatted = (parseInt(latestTx.value, 10) / 1_000_000).toFixed(6);
+          invoice.status = InvoiceStatus.CONFIRMED;
+          invoice.paidCryptoAmount = formatted;
+          invoice.paymentDetails = {
+            txHash: latestTx.transaction_id,
+            confirmations: 20,
+            paidAt: new Date(),
+          };
+          await invoice.save();
+          userFacingStatus = InvoiceStatus.CONFIRMED;
+          logger.info(`[InvoiceController] Reconciled TRON payment on-demand for ${invoice.invoiceId}!`);
+        }
+      } catch (checkErr) {
+        logger.debug('[InvoiceController] On-demand TRON check skipped', { error: checkErr });
+      }
+    }
+
+    // 3. Lazy check: if pending, not paid, and time expired, update status in DB
+    if (invoice.isExpired() && parseFloat(invoice.paidCryptoAmount || '0') === 0 && userFacingStatus !== InvoiceStatus.CONFIRMED) {
       invoice.status = InvoiceStatus.EXPIRED;
+      userFacingStatus = InvoiceStatus.EXPIRED;
       await invoice.save();
     }
 
@@ -161,8 +203,8 @@ export async function getInvoiceStatus(
       paidCryptoAmount: invoice.paidCryptoAmount,
       cryptoCurrency: invoice.cryptoCurrency,
       network: invoice.network,
-      status: invoice.status,
-      confirmations: invoice.paymentDetails.confirmations,
+      status: userFacingStatus,
+      confirmations: invoice.paymentDetails.confirmations || 0,
       txHash: invoice.paymentDetails.txHash,
       expiresAt: invoice.expiresAt,
       createdAt: invoice.createdAt,

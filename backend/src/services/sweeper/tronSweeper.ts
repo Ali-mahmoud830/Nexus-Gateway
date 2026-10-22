@@ -140,7 +140,9 @@ export async function sweepTronInvoice(invoice: IInvoiceDocument): Promise<Sweep
       depositAddress,
     });
 
-    invoice.status = InvoiceStatus.FAILED;
+    // Do NOT overwrite user payment status to FAILED!
+    // The user's deposit is verified on-chain. Keep status as CONFIRMED so their balance is credited.
+    // The sweeper will automatically retry forwarding once the Gas Station is funded.
     invoice.forwardingDetails.failureReason = errorMsg;
     await invoice.save();
 
