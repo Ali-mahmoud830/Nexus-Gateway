@@ -1,0 +1,68 @@
+# ============================================================
+# Render.com Infrastructure Blueprint — Nexus-Gateway
+# ============================================================
+# Docs: https://render.com/docs/blueprint-spec
+# ============================================================
+
+services:
+  - type: web
+    name: nexus-gateway-backend
+    runtime: node
+    rootDir: backend
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_VERSION
+        value: v1
+      - key: ALLOWED_ORIGINS
+        value: https://nexus-gateway-vert.vercel.app,https://*.vercel.app,http://localhost:3000
+      - key: MONGODB_DB_NAME
+        value: crypto_gateway
+      - key: BSC_RPC_PRIMARY
+        value: https://bsc-rpc.publicnode.com
+      - key: BSC_RPC_SECONDARY
+        value: https://bsc.drpc.org
+      - key: BSC_RPC_TERTIARY
+        value: https://1rpc.io/bnb
+      - key: BSC_USDT_CONTRACT
+        value: "0x55d398326f99059fF775485246999027B3197955"
+      - key: BSC_CONFIRMATIONS_REQUIRED
+        value: "3"
+      - key: TRON_FULL_NODE
+        value: https://api.trongrid.io
+      - key: TRON_SOLIDITY_NODE
+        value: https://api.trongrid.io
+      - key: TRON_EVENT_SERVER
+        value: https://api.trongrid.io
+      - key: TRON_USDT_CONTRACT
+        value: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+      - key: TRON_CONFIRMATIONS_REQUIRED
+        value: "20"
+      - key: INVOICE_EXPIRY_MINUTES
+        value: "15"
+      - key: SWEEPER_CRON_INTERVAL_SECONDS
+        value: "30"
+      - key: SWEEPER_MIN_AMOUNT_USD
+        value: "1"
+      - key: LOG_LEVEL
+        value: info
+      
+      # Secret variables (Render prompts you to paste these securely during setup)
+      - key: MONGODB_URI
+        sync: false
+      - key: HD_MNEMONIC
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BSC_MAIN_WALLET
+        sync: false
+      - key: TRON_MAIN_WALLET
+        sync: false
+      - key: TRON_API_KEY
+        sync: false

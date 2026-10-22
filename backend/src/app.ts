@@ -73,11 +73,22 @@ export function createApp(): Application {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (e.g., server-to-server, curl)
+        // Allow requests with no origin (e.g., server-to-server, curl, Postman)
         if (!origin) return callback(null, true);
-        if (env.cors.allowedOrigins.includes(origin)) {
+
+        const isAllowed = env.cors.allowedOrigins.some((allowed) => {
+          if (allowed === '*' || allowed === origin) return true;
+          if (allowed.includes('*')) {
+            const pattern = new RegExp('^' + allowed.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+            return pattern.test(origin);
+          }
+          return false;
+        });
+
+        if (isAllowed) {
           return callback(null, true);
         }
+
         logger.warn('[CORS] Blocked request from disallowed origin.', { origin });
         return callback(new Error(`CORS policy violation: origin "${origin}" is not allowed.`));
       },
