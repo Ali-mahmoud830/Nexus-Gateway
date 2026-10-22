@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Invoice, InvoiceStatus, CryptoNetwork } from '../../models/Invoice';
 import { ApiKey } from '../../models/ApiKey';
+import { GatewayConfig } from '../../models/GatewayConfig';
 import { gasStation } from '../../services/sweeper/gasStation';
 import { sweepTronInvoice } from '../../services/sweeper/tronSweeper';
 import { sweepBscInvoice } from '../../services/sweeper/bscSweeper';
@@ -338,3 +339,72 @@ export async function deleteAdminApiKey(req: Request, res: Response, next: NextF
     next(err);
   }
 }
+
+/**
+ * GET /api/v1/admin/config
+ * Retrieves active global gateway fee rates and operational thresholds.
+ */
+export async function getGatewayConfig(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const config = await GatewayConfig.getActiveConfig();
+    sendSuccess(res, { config });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PUT /api/v1/admin/config
+ * Updates dynamic percentage fee rates and thresholds, instantly syncing to database.
+ */
+export async function updateGatewayConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { bscFeePercent, tronFeePercent, minBscFeeUsd, minTronFeeUsd, autoSweepEnabled } = req.body;
+
+    const config = await GatewayConfig.getActiveConfig();
+
+    if (typeof bscFeePercent === 'number') {
+      if (bscFeePercent < 0 || bscFeePercent > 50) {
+        throw new AppError('bscFeePercent must be between 0% and 50%', StatusCodes.BAD_REQUEST, 'INVALID_CONFIG');
+      }
+      config.bscFeePercent = parseFloat(bscFeePercent.toFixed(2));
+    }
+
+    if (typeof tronFeePercent === 'number') {
+      if (tronFeePercent < 0 || tronFeePercent > 50) {
+        throw new AppError('tronFeePercent must be between 0% and 50%', StatusCodes.BAD_REQUEST, 'INVALID_CONFIG');
+      }
+      config.tronFeePercent = parseFloat(tronFeePercent.toFixed(2));
+    }
+
+    if (typeof minBscFeeUsd === 'number' && minBscFeeUsd >= 0) {
+      config.minBscFeeUsd = parseFloat(minBscFeeUsd.toFixed(2));
+    }
+
+    if (typeof minTronFeeUsd === 'number' && minTronFeeUsd >= 0) {
+      config.minTronFeeUsd = parseFloat(minTronFeeUsd.toFixed(2));
+    }
+
+    if (typeof autoSweepEnabled === 'boolean') {
+      config.autoSweepEnabled = autoSweepEnabled;
+    }
+
+    config.updatedBy = (req as any).admin?.gateway || 'super_admin';
+    await config.save();
+
+    logger.info('[Admin] Updated gateway fee configuration:', {
+      bscFeePercent: config.bscFeePercent,
+      tronFeePercent: config.tronFeePercent,
+      minBscFeeUsd: config.minBscFeeUsd,
+      minTronFeeUsd: config.minTronFeeUsd,
+    });
+
+    sendSuccess(res, {
+      message: 'Gateway fee configuration updated successfully',
+      config,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+

@@ -7,4 +7,7 @@
 export * from './Invoice';
 export * from './Counter';
 export * from './BlockCursor';
+export * from './ApiKey';
+export * from './GatewayConfig';
+
 

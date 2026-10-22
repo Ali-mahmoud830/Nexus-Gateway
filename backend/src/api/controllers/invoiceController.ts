@@ -12,6 +12,7 @@ import { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { v4 as uuidv4 } from 'uuid';
 import { Invoice, InvoiceStatus, CryptoNetwork, CryptoCurrency } from '../../models/Invoice';
+import { GatewayConfig } from '../../models/GatewayConfig';
 import { generateDepositAddress } from '../../services/hdWallet';
 import { env } from '../../config/env';
 import { sendSuccess } from '../../utils/responseHelper';
@@ -62,9 +63,14 @@ export async function createInvoice(
     // 2. Generate unique temporary deposit address
     const derived = await generateDepositAddress(network);
 
-    // 3. Dynamic network gas fee surcharge (Customer covers network gas)
-    // TRON requires ~15-20 TRX energy burn ($2.50). BSC requires ~0.0004 BNB gas ($0.30).
-    const networkGasFee = network === CryptoNetwork.TRON ? 2.50 : 0.30;
+    // 3. Dynamic percentage fee calculation from live database configuration
+    const config = await GatewayConfig.getActiveConfig();
+    const feePercent = network === CryptoNetwork.TRON ? config.tronFeePercent : config.bscFeePercent;
+    const minFeeFloor = network === CryptoNetwork.TRON ? config.minTronFeeUsd : config.minBscFeeUsd;
+
+    // Calculate percentage surcharge: Base * (feePercent / 100), with safety gas floor protection
+    const calculatedPercentFee = (amount * feePercent) / 100;
+    const networkGasFee = parseFloat(Math.max(calculatedPercentFee, minFeeFloor).toFixed(6));
     const totalExpected = amount + networkGasFee;
     const expectedCryptoAmount = totalExpected.toFixed(6);
 

@@ -14,6 +14,8 @@ import {
   getAdminApiKeys,
   createAdminApiKey,
   deleteAdminApiKey,
+  getGatewayConfig,
+  updateGatewayConfig,
 } from '../controllers/adminController';
 import { requireAdminAuth } from '../middlewares/adminAuth';
 
@@ -32,5 +34,9 @@ router.post('/invoices/:invoiceId/sweep', triggerManualSweep);
 router.get('/keys', getAdminApiKeys);
 router.post('/keys', createAdminApiKey);
 router.delete('/keys/:keyId', deleteAdminApiKey);
+
+// Dynamic Fee & Gateway Configuration
+router.get('/config', getGatewayConfig);
+router.put('/config', updateGatewayConfig);
 
 export default router;
