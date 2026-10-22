@@ -4,7 +4,10 @@
  * src/app/pay/[invoiceId]/page.tsx
  *
  * Dedicated checkout view for a specific invoice ID.
- * Wrapped in Suspense to satisfy Next.js client component prerendering requirements.
+ * Features:
+ * - Institutional Navbar with live telemetry
+ * - Suspense wrapper for Next.js prerendering
+ * - Real-time polling, Web3 payment, and countdown clock
  */
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -12,6 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { getInvoiceStatus, createInvoice } from '@/lib/api';
 import { InvoiceDetails, CryptoNetwork } from '@/types/invoice';
 import { CheckoutCard } from '@/components/CheckoutCard';
+import { Navbar } from '@/components/Navbar';
 import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -90,32 +94,36 @@ function InvoiceCheckoutContent() {
 
 export default function InvoiceCheckoutPage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-[#090d16] text-gray-100 selection:bg-cyan-500 selection:text-black">
-      {/* Top Navigation */}
-      <div className="w-full max-w-md mb-4 flex items-center justify-between text-xs text-gray-400">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Terminal</span>
-        </Link>
-        <div className="flex items-center gap-1.5 font-mono text-[11px] text-gray-500">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          Gateway Active
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#070b14] text-gray-100 flex flex-col selection:bg-cyan-500 selection:text-black">
+      <Navbar />
 
-      <Suspense
-        fallback={
-          <div className="w-full max-w-md h-96 rounded-3xl crypto-card flex flex-col items-center justify-center space-y-3">
-            <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-            <p className="text-xs text-gray-400 font-medium">Loading checkout...</p>
+      <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-8">
+        {/* Top Navigation Back Link */}
+        <div className="w-full max-w-md mb-4 flex items-center justify-between text-xs text-gray-400">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Terminal</span>
+          </Link>
+          <div className="flex items-center gap-1.5 font-mono text-[11px] text-gray-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Connected to Live Cloud Gateway
           </div>
-        }
-      >
-        <InvoiceCheckoutContent />
-      </Suspense>
-    </main>
+        </div>
+
+        <Suspense
+          fallback={
+            <div className="w-full max-w-md h-96 rounded-3xl crypto-card flex flex-col items-center justify-center space-y-3">
+              <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+              <p className="text-xs text-gray-400 font-medium">Loading checkout...</p>
+            </div>
+          }
+        >
+          <InvoiceCheckoutContent />
+        </Suspense>
+      </main>
+    </div>
   );
 }

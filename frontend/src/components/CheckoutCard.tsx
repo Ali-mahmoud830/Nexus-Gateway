@@ -3,18 +3,33 @@
 /**
  * src/components/CheckoutCard.tsx
  *
- * Core checkout container assembling the network selector, QR code,
- * 15-minute countdown clock, real-time polling updates, and success state.
+ * Core checkout container assembling:
+ * 1. 15-minute countdown clock
+ * 2. Transparent Dynamic Fee Breakdown (Base + Gas + Subsidized total)
+ * 3. One-Click Web3 Wallet Checkout (MetaMask / Trust Wallet / TronLink)
+ * 4. QR Code & Ephemeral Deposit Address
+ * 5. Real-time polling updates & Success confetti
  */
 
 import React, { useState } from 'react';
 import { InvoiceDetails, InvoiceStatus, CryptoNetwork } from '../types/invoice';
 import { useInvoicePoller } from '../hooks/useInvoicePoller';
+import { useWeb3Payment } from '../hooks/useWeb3Payment';
+import { NETWORK_FEES } from '../lib/api';
 import { StatusBadge } from './StatusBadge';
 import { CountdownTimer } from './CountdownTimer';
 import { QrCodeCard } from './QrCodeCard';
 import { SuccessView } from './SuccessView';
-import { RefreshCw, Shield, AlertCircle } from 'lucide-react';
+import {
+  RefreshCw,
+  Shield,
+  AlertCircle,
+  Wallet,
+  Loader2,
+  CheckCircle2,
+  HelpCircle,
+  Receipt,
+} from 'lucide-react';
 
 interface CheckoutCardProps {
   initialInvoice: InvoiceDetails;
@@ -26,6 +41,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
   onInvoiceRegenerate,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showFeeDetails, setShowFeeDetails] = useState(false);
 
   const { invoice, refresh, error } = useInvoicePoller({
     invoiceId: initialInvoice.invoiceId,
@@ -37,17 +53,38 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
   const isConfirmed = activeInvoice.status === InvoiceStatus.CONFIRMED;
   const isExpired = activeInvoice.status === InvoiceStatus.EXPIRED;
 
+  // Web3 One-Click Payment hook
+  const {
+    isWalletAvailable,
+    walletName,
+    isProcessing: isWeb3Processing,
+    error: web3Error,
+    txHash: web3TxHash,
+    payWithWallet,
+  } = useWeb3Payment({
+    network: activeInvoice.network,
+    depositAddress: activeInvoice.depositAddress,
+    expectedAmount: activeInvoice.expectedCryptoAmount,
+    onSuccess: async () => {
+      // Force an immediate refresh when wallet returns a broadcasted hash
+      await refresh();
+    },
+  });
+
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     await refresh();
     setTimeout(() => setIsRefreshing(false), 600);
   };
 
+  const feeInfo = NETWORK_FEES[activeInvoice.network];
+  const baseAmount = parseFloat(activeInvoice.expectedCryptoAmount);
+  const networkGas = feeInfo.feeUsdt;
   const requiredConfirmations = activeInvoice.network === CryptoNetwork.BSC ? 3 : 20;
 
   return (
     <div className="w-full max-w-md mx-auto rounded-3xl crypto-card p-6 shadow-2xl relative overflow-hidden transition-all duration-300">
-      {/* Network Accent Glow */}
+      {/* Network Ambient Glow */}
       <div
         className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none ${
           activeInvoice.network === CryptoNetwork.BSC ? 'bg-yellow-400' : 'bg-red-500'
@@ -55,7 +92,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-800/80 pb-4 mb-5">
+      <div className="flex items-center justify-between border-b border-gray-800/80 pb-4 mb-4">
         <div>
           <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">
             Invoice #{activeInvoice.invoiceId.slice(-8)}
@@ -82,21 +119,35 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
         </div>
       </div>
 
-      {/* Error alert if poller failed */}
+      {/* Error alerts */}
       {error && (
         <div className="mb-4 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>Sync error: {error}. Reconnecting...</span>
+          <span>Sync issue: {error}. Retrying...</span>
         </div>
       )}
 
-      {/* Main Content Body */}
+      {web3Error && (
+        <div className="mb-4 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>Wallet notice: {web3Error}</span>
+        </div>
+      )}
+
+      {web3TxHash && (
+        <div className="mb-4 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span className="truncate">Tx broadcasted! Awaiting confirmations...</span>
+        </div>
+      )}
+
+      {/* Main Content */}
       {isConfirmed ? (
         <SuccessView
           amount={activeInvoice.expectedCryptoAmount}
           cryptoCurrency={activeInvoice.cryptoCurrency}
           network={activeInvoice.network}
-          txHash={activeInvoice.txHash}
+          txHash={activeInvoice.txHash || web3TxHash || undefined}
           depositAddress={activeInvoice.depositAddress}
         />
       ) : isExpired ? (
@@ -125,6 +176,78 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
         <div className="space-y-4">
           {/* Countdown timer */}
           <CountdownTimer expiresAt={activeInvoice.expiresAt} />
+
+          {/* Web3 One-Click Wallet Button */}
+          <div className="w-full">
+            <button
+              type="button"
+              onClick={payWithWallet}
+              disabled={isWeb3Processing}
+              className={`w-full py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeInvoice.network === CryptoNetwork.BSC
+                  ? 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black shadow-lg shadow-yellow-500/20'
+                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-500/20'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {isWeb3Processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Confirming in {walletName}...</span>
+                </>
+              ) : (
+                <>
+                  <Wallet className="w-4 h-4" />
+                  <span>
+                    Pay {activeInvoice.expectedCryptoAmount} USDT via {walletName}
+                  </span>
+                </>
+              )}
+            </button>
+            <p className="text-[10px] text-center text-gray-500 mt-1.5">
+              Instant 1-Click transfer &bull; Or scan QR code below manually
+            </p>
+          </div>
+
+          {/* Transparent Dynamic Fee Breakdown Box */}
+          <div className="w-full bg-gray-900/60 rounded-xl p-3 border border-gray-800 text-xs">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowFeeDetails(!showFeeDetails)}
+                className="flex items-center gap-1.5 text-gray-300 font-medium hover:text-white transition-colors cursor-pointer"
+              >
+                <Receipt className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Payment Summary & Fees</span>
+                <HelpCircle className="w-3 h-3 text-gray-500" />
+              </button>
+              <span className="font-mono font-bold text-white">
+                {activeInvoice.expectedCryptoAmount} USDT
+              </span>
+            </div>
+
+            {showFeeDetails && (
+              <div className="mt-2.5 pt-2 border-t border-gray-800/80 space-y-1.5 text-[11px] text-gray-400 animate-in fade-in duration-200">
+                <div className="flex justify-between">
+                  <span>Trading Deposit Amount</span>
+                  <span className="font-mono text-gray-200">${baseAmount.toFixed(2)} USD</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{feeInfo.protocolBadge} Network Gas Est.</span>
+                  <span className="font-mono text-gray-300">~${networkGas.toFixed(2)} USD</span>
+                </div>
+                <div className="flex justify-between text-emerald-400">
+                  <span>Platform Fee Subsidization</span>
+                  <span className="font-mono">-${networkGas.toFixed(2)} (100% Free)</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-gray-800 font-semibold text-gray-200">
+                  <span>Net Amount to Send</span>
+                  <span className="font-mono text-cyan-300">
+                    {activeInvoice.expectedCryptoAmount} USDT
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* QR Code and Deposit Details */}
           <QrCodeCard

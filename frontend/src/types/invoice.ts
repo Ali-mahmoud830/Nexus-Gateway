@@ -1,7 +1,7 @@
 /**
  * src/types/invoice.ts
  *
- * Frontend types mirroring the backend schema and API contracts.
+ * Frontend types mirroring the backend schema, API contracts, and Web3 fee models.
  */
 
 export enum CryptoNetwork {
@@ -22,6 +22,15 @@ export enum InvoiceStatus {
   UNDERPAID = 'UNDERPAID',
 }
 
+export interface NetworkFeeInfo {
+  network: CryptoNetwork;
+  feeUsdt: number;
+  feeFormatted: string;
+  isSubsidized: boolean;
+  blockTimeEstimate: string;
+  protocolBadge: string;
+}
+
 export interface InvoiceDetails {
   invoiceId: string;
   depositAddress: string;
@@ -34,6 +43,45 @@ export interface InvoiceDetails {
   txHash?: string;
   expiresAt: string;
   createdAt: string;
+  feeBreakdown?: {
+    baseAmount: number;
+    networkFee: number;
+    totalAmount: number;
+    isSubsidized: boolean;
+  };
+}
+
+export interface SystemHealthData {
+  status: string;
+  timestamp: string;
+  uptime: number;
+  mongodb: string;
+  blockchain: {
+    bsc: {
+      network: string;
+      isRunning: boolean;
+      lastScannedBlock: number;
+      currentTipBlock: number;
+      activeInvoicesTracked: number;
+    };
+    tron: {
+      network: string;
+      isRunning: boolean;
+      activeInvoicesTracked: number;
+    };
+    bscRpcNodes?: Array<{
+      url: string;
+      isHealthy: boolean;
+      latencyMs: number;
+    }>;
+  };
+  sweeper: {
+    isRunning: boolean;
+    gasStation?: {
+      bsc: { nativeBalance: string; isSufficient: boolean };
+      tron: { nativeBalance: string; isSufficient: boolean };
+    };
+  };
 }
 
 export interface ApiResponse<T> {
