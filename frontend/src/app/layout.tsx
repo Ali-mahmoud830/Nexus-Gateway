@@ -18,6 +18,8 @@ export const metadata: Metadata = {
     'Deposit USDT via BNB Smart Chain (BEP-20) or TRON (TRC-20) with automated privacy routing and instant confirmation.',
 };
 
+import { LanguageProvider } from '@/context/LanguageContext';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
-      <body className="min-h-screen bg-[#090d16] text-gray-100 antialiased">{children}</body>
+      <body className="min-h-screen bg-[#090d16] text-gray-100 antialiased">
+        <LanguageProvider>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }

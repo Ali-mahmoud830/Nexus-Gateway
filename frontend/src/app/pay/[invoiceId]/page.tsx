@@ -18,6 +18,7 @@ import { CheckoutCard } from '@/components/CheckoutCard';
 import { Navbar } from '@/components/Navbar';
 import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '@/context/LanguageContext';
 
 function InvoiceCheckoutContent() {
   const params = useParams();
@@ -60,11 +61,13 @@ function InvoiceCheckoutContent() {
     }
   };
 
+  const { t, isArabic } = useLanguage();
+
   if (loading) {
     return (
       <div className="w-full max-w-md h-96 rounded-3xl crypto-card flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-        <p className="text-xs text-gray-400 font-medium">Fetching secure payment details...</p>
+        <p className="text-xs text-gray-400 font-medium">{t.fetchingDetails}</p>
       </div>
     );
   }
@@ -75,13 +78,13 @@ function InvoiceCheckoutContent() {
         <div className="w-12 h-12 mx-auto rounded-full bg-rose-500/10 flex items-center justify-center">
           <AlertCircle className="w-6 h-6 text-rose-400" />
         </div>
-        <h2 className="text-lg font-bold text-white">Invoice Expired or Not Found</h2>
+        <h2 className="text-lg font-bold text-white">{t.invoiceExpiredOrNotFound}</h2>
         <p className="text-xs text-gray-400">{error}</p>
         <Link
           href="/"
           className="inline-block mt-2 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-white transition-colors"
         >
-          Return to Checkout
+          {t.returnToCheckout}
         </Link>
       </div>
     );
@@ -93,6 +96,8 @@ function InvoiceCheckoutContent() {
 }
 
 export default function InvoiceCheckoutPage() {
+  const { t } = useLanguage();
+
   return (
     <div className="min-h-screen bg-[#070b14] text-gray-100 flex flex-col selection:bg-cyan-500 selection:text-black">
       <Navbar />
@@ -105,11 +110,11 @@ export default function InvoiceCheckoutPage() {
             className="flex items-center gap-1.5 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Checkout</span>
+            <span>{t.returnToCheckout}</span>
           </Link>
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-gray-500">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>256-Bit SSL Encrypted</span>
+            <span>{t.sslEncrypted}</span>
           </div>
         </div>
 

@@ -30,6 +30,7 @@ import {
   HelpCircle,
   Receipt,
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CheckoutCardProps {
   initialInvoice: InvoiceDetails;
@@ -40,6 +41,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
   initialInvoice,
   onInvoiceRegenerate,
 }) => {
+  const { t } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFeeDetails, setShowFeeDetails] = useState(false);
 
@@ -101,10 +103,10 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
       <div className="flex items-center justify-between border-b border-gray-800/80 pb-4 mb-4">
         <div>
           <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">
-            Invoice #{activeInvoice.invoiceId.slice(-8)}
+            {t.invoiceNumber}{activeInvoice.invoiceId.slice(-8)}
           </span>
           <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            Complete Deposit
+            {t.completeDeposit}
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -162,10 +164,9 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
             <AlertCircle className="w-8 h-8 text-rose-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Payment Session Expired</h3>
+            <h3 className="text-lg font-bold text-white">{t.paymentSessionExpired}</h3>
             <p className="text-xs text-gray-400 mt-1 max-w-xs">
-              The 15-minute deposit window has ended. To safeguard your funds, please generate a new
-              deposit address.
+              {t.expiredNotice}
             </p>
           </div>
           {onInvoiceRegenerate && (
@@ -174,7 +175,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
               onClick={() => onInvoiceRegenerate(activeInvoice.network)}
               className="mt-2 px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-black font-bold text-xs transition-colors cursor-pointer"
             >
-              Generate New Invoice
+              {t.generateNewInvoice}
             </button>
           )}
         </div>
@@ -198,19 +199,19 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
               {isWeb3Processing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Confirming in {walletName}...</span>
+                  <span>{t.confirmingIn} {walletName}...</span>
                 </>
               ) : (
                 <>
                   <Wallet className="w-4 h-4" />
                   <span>
-                    Pay {activeInvoice.expectedCryptoAmount} USDT via {walletName}
+                    {t.payVia} {activeInvoice.expectedCryptoAmount} USDT ({walletName})
                   </span>
                 </>
               )}
             </button>
             <p className="text-[10px] text-center text-gray-500 mt-1.5">
-              Instant 1-Click transfer &bull; Or scan QR code below manually
+              {t.instantOneClick}
             </p>
           </div>
 
@@ -223,7 +224,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
                 className="flex items-center gap-1.5 text-gray-300 font-medium hover:text-white transition-colors cursor-pointer"
               >
                 <Receipt className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Payment Summary & Fees</span>
+                <span>{t.paymentSummaryAndFees}</span>
                 <HelpCircle className="w-3 h-3 text-gray-500" />
               </button>
               <span className="font-mono font-bold text-white">
@@ -234,15 +235,15 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
             {showFeeDetails && (
               <div className="mt-2.5 pt-2 border-t border-gray-800/80 space-y-1.5 text-[11px] text-gray-400 animate-in fade-in duration-200">
                 <div className="flex justify-between">
-                  <span>Invoice Amount</span>
+                  <span>{t.invoiceAmount}</span>
                   <span className="font-mono text-gray-200">${baseAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{feeInfo.protocolBadge} Network Fee</span>
+                  <span>{feeInfo.protocolBadge} {t.networkFee}</span>
                   <span className="font-mono text-amber-400">+${feeAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-gray-800 font-semibold text-gray-200">
-                  <span>Total Due</span>
+                  <span>{t.totalDue}</span>
                   <span className="font-mono text-cyan-300">
                     {activeInvoice.expectedCryptoAmount} USDT
                   </span>
@@ -264,7 +265,7 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
       {/* Security Seal Footer */}
       <div className="mt-5 pt-4 border-t border-gray-800/80 flex items-center justify-center gap-2 text-[11px] text-gray-500">
         <Shield className="w-3.5 h-3.5 text-emerald-500/80" />
-        <span>Secured by Non-Custodial Smart Contract Rails</span>
+        <span>{t.securedBy}</span>
       </div>
     </div>
   );

@@ -10,6 +10,7 @@
 import React from 'react';
 import { useCountdown } from '../hooks/useCountdown';
 import { Clock, AlertCircle } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CountdownTimerProps {
   expiresAt: string | undefined;
@@ -17,6 +18,7 @@ interface CountdownTimerProps {
 }
 
 export const CountdownTimer: React.FC<CountdownTimerProps> = ({ expiresAt, onExpire }) => {
+  const { t } = useLanguage();
   const { minutes, seconds, formatted, isExpired, percentageRemaining } = useCountdown(
     expiresAt,
     15 * 60,
@@ -29,7 +31,7 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({ expiresAt, onExp
     return (
       <div className="flex items-center gap-2 text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3.5 py-2 rounded-xl text-xs font-semibold">
         <AlertCircle className="w-4 h-4" />
-        <span>Time expired. Please generate a new invoice.</span>
+        <span>{t.timeExpired}</span>
       </div>
     );
   }
@@ -39,7 +41,7 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({ expiresAt, onExp
       <div className="flex items-center justify-between text-xs mb-1.5">
         <span className="flex items-center gap-1.5 text-gray-400 font-medium">
           <Clock className={`w-3.5 h-3.5 ${isUrgent ? 'text-amber-400 animate-pulse' : 'text-gray-400'}`} />
-          Payment Window
+          {t.paymentWindow}
         </span>
         <span
           className={`font-mono font-bold text-sm tracking-wider ${

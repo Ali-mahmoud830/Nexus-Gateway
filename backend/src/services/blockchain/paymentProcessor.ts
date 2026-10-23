@@ -13,8 +13,10 @@
  *   5. Dispatches webhooks to the binary options trading platform to credit user balances.
  */
 
+import crypto from 'crypto';
 import axios from 'axios';
 import { Invoice, InvoiceStatus, CryptoNetwork } from '../../models/Invoice';
+import { env } from '../../config/env';
 import { logger } from '../../utils/logger';
 import { PaymentDetectedEvent } from './types';
 
@@ -87,12 +89,17 @@ export class PaymentProcessor {
     invoice.paymentDetails.confirmations = confirmations;
     invoice.paidCryptoAmount = formattedAmount;
 
-    // 4. Financial Reconciliation: Check Underpayment / Overpayment
-    if (paidNum < expectedNum - SLIPPAGE_TOLERANCE_USD) {
-      // Underpayment detected (e.g. user deducted withdrawal fee from sent amount)
+    // 4. Financial Reconciliation: Check Underpayment / Overpayment with Safe Tolerance
+    const baseNum = invoice.baseAmount || invoice.fiatAmount;
+    const isUnderpaid =
+      paidNum < baseNum - 0.5 && paidNum < expectedNum - SLIPPAGE_TOLERANCE_USD;
+
+    if (isUnderpaid) {
+      // Underpayment detected (user sent significantly less than required deposit)
       logger.warn('[PaymentProcessor] Underpayment detected', {
         invoiceId: invoice.invoiceId,
         expected: invoice.expectedCryptoAmount,
+        base: baseNum,
         received: formattedAmount,
         deficit: (expectedNum - paidNum).toFixed(6),
       });
@@ -195,7 +202,7 @@ export class PaymentProcessor {
   }
 
   /**
-   * Dispatches signed webhook payload to the external platform callback URL.
+   * Dispatches cryptographically signed HMAC-SHA256 webhook payload to the external platform callback URL.
    */
   private async dispatchWebhook(
     invoice: any,
@@ -203,13 +210,16 @@ export class PaymentProcessor {
   ): Promise<void> {
     if (!invoice.webhookUrl) return;
 
+    const timestamp = Math.floor(Date.now() / 1000);
     const payload = {
       event,
       timestamp: new Date().toISOString(),
       data: {
         invoiceId: invoice.invoiceId,
         userId: invoice.userId,
-        fiatAmount: invoice.fiatAmount,
+        amount: invoice.baseAmount || invoice.fiatAmount,
+        baseAmount: invoice.baseAmount || invoice.fiatAmount,
+        feeAmount: invoice.feeAmount || 0,
         expectedCryptoAmount: invoice.expectedCryptoAmount,
         paidCryptoAmount: invoice.paidCryptoAmount,
         cryptoCurrency: invoice.cryptoCurrency,
@@ -222,25 +232,51 @@ export class PaymentProcessor {
       },
     };
 
-    try {
-      invoice.webhookAttempts = (invoice.webhookAttempts || 0) + 1;
-      await axios.post(invoice.webhookUrl, payload, {
-        timeout: 5000,
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'CryptoGateway-Webhook/1.0',
-        },
-      });
-      invoice.webhookDelivered = true;
-      await invoice.save();
-      logger.info(`[PaymentProcessor] Webhook delivered successfully to ${invoice.webhookUrl}`, {
-        invoiceId: invoice.invoiceId,
-        event,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`[PaymentProcessor] Webhook delivery failed for ${invoice.invoiceId}: ${msg}`);
-      await invoice.save();
+    const signaturePayload = `${timestamp}.${JSON.stringify(payload)}`;
+    const signature = crypto
+      .createHmac('sha256', env.jwt.secret)
+      .update(signaturePayload)
+      .digest('hex');
+
+    const maxRetries = 3;
+    let delivered = false;
+
+    for (let attempt = 1; attempt <= maxRetries && !delivered; attempt++) {
+      try {
+        invoice.webhookAttempts = (invoice.webhookAttempts || 0) + 1;
+        await axios.post(invoice.webhookUrl, payload, {
+          timeout: 6000,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'NexusPay-Webhook/2.0',
+            'X-Nexus-Signature': `t=${timestamp},v1=${signature}`,
+            'X-Nexus-Timestamp': `${timestamp}`,
+            'X-Nexus-Event': event,
+          },
+        });
+
+        delivered = true;
+        invoice.webhookDelivered = true;
+        await invoice.save();
+
+        logger.info(
+          `[PaymentProcessor] Webhook delivered successfully to ${invoice.webhookUrl} (attempt ${attempt})`,
+          {
+            invoiceId: invoice.invoiceId,
+            event,
+          },
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          `[PaymentProcessor] Webhook delivery attempt ${attempt} failed for ${invoice.invoiceId}: ${msg}`,
+        );
+        if (attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+        } else {
+          await invoice.save();
+        }
+      }
     }
   }
 }

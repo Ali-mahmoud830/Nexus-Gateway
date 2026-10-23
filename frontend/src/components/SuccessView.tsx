@@ -11,6 +11,7 @@ import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CryptoNetwork } from '../types/invoice';
 import { CheckCircle2, ExternalLink, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface SuccessViewProps {
   amount: string;
@@ -28,6 +29,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   txHash,
   onReturn,
 }) => {
+  const { t } = useLanguage();
   useEffect(() => {
     // Fire confetti bursts
     const duration = 2.5 * 1000;
@@ -70,22 +72,22 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Payment Confirmed!</h2>
+        <h2 className="text-2xl font-bold text-white tracking-tight">{t.paymentConfirmedTitle}</h2>
         <p className="text-sm text-gray-400 mt-1">
-          Your deposit has been verified on the blockchain and credited.
+          {t.paymentConfirmedSubtitle}
         </p>
       </div>
 
       {/* Payment Summary Box */}
       <div className="w-full bg-gray-900/80 rounded-2xl p-4 border border-emerald-500/30 text-left space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400">
-          <span>Amount Credited</span>
+          <span>{t.amountCredited}</span>
           <span className="text-emerald-400 font-bold font-mono text-sm">
             +{amount} {cryptoCurrency}
           </span>
         </div>
         <div className="flex justify-between items-center text-xs text-gray-400">
-          <span>Network</span>
+          <span>{t.network}</span>
           <span className="text-gray-200 font-medium">
             {network === CryptoNetwork.BSC ? 'BNB Smart Chain (BEP-20)' : 'TRON (TRC-20)'}
           </span>
@@ -93,7 +95,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
         {txHash && (
           <div className="pt-2 border-t border-gray-800 flex justify-between items-center text-xs">
-            <span className="text-gray-400">Transaction</span>
+            <span className="text-gray-400">{t.transaction}</span>
             <a
               href={explorerUrl || '#'}
               target="_blank"

@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { CryptoNetwork } from '../types/invoice';
 import { Copy, Check, ExternalLink, ShieldAlert } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface QrCodeCardProps {
   depositAddress: string;
@@ -25,6 +26,7 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
   cryptoCurrency,
   network,
 }) => {
+  const { t } = useLanguage();
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
 
@@ -77,8 +79,8 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
       {/* Amount Copy Box */}
       <div className="w-full bg-gray-900/80 rounded-xl p-3 border border-gray-800">
         <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-          <span>Amount to Pay</span>
-          <span className="text-yellow-400/90 font-medium">Send exact amount</span>
+          <span>{t.amountToPay}</span>
+          <span className="text-yellow-400/90 font-medium">{t.sendExactAmount}</span>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-1.5">
@@ -92,17 +94,17 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
           <button
             type="button"
             onClick={() => copyToClipboard(expectedAmount, 'amount')}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors cursor-pointer"
           >
             {copiedAmount ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400">Copied</span>
+                <span className="text-emerald-400">{t.copied}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>Copy</span>
+                <span>{t.copy}</span>
               </>
             )}
           </button>
@@ -112,14 +114,14 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
       {/* Address Copy Box */}
       <div className="w-full bg-gray-900/80 rounded-xl p-3 border border-gray-800">
         <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-          <span>Deposit Address</span>
+          <span>{t.depositAddress}</span>
           <a
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
           >
-            <span>View on Explorer</span>
+            <span>{t.viewOnExplorer}</span>
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -130,17 +132,17 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
           <button
             type="button"
             onClick={() => copyToClipboard(depositAddress, 'address')}
-            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors cursor-pointer"
           >
             {copiedAddress ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400">Copied</span>
+                <span className="text-emerald-400">{t.copied}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>Copy</span>
+                <span>{t.copy}</span>
               </>
             )}
           </button>
@@ -151,12 +153,10 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
       <div className="w-full flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-xs">
         <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
         <p className="leading-tight">
-          Only send <strong className="text-white">USDT</strong> via the{' '}
-          <strong className="text-white">
-            {network === CryptoNetwork.BSC ? 'BNB Smart Chain (BEP-20)' : 'TRON (TRC-20)'}
-          </strong>{' '}
-          network to this unique address. Sending any other token or network may result in permanent
-          loss.
+          {t.warningNotice.replace(
+            '{network}',
+            network === CryptoNetwork.BSC ? 'BNB Smart Chain (BEP-20)' : 'TRON (TRC-20)',
+          )}
         </p>
       </div>
     </div>

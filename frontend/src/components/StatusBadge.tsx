@@ -14,6 +14,7 @@
 import React from 'react';
 import { InvoiceStatus } from '../types/invoice';
 import { Clock, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface StatusBadgeProps {
   status: InvoiceStatus;
@@ -26,6 +27,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   confirmations = 0,
   requiredConfirmations = 3,
 }) => {
+  const { t } = useLanguage();
+
   switch (status) {
     case InvoiceStatus.PENDING:
       return (
@@ -35,7 +38,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
           </span>
           <Clock className="w-3.5 h-3.5" />
-          <span>Awaiting Payment</span>
+          <span>{t.awaitingPayment}</span>
         </div>
       );
 
@@ -44,7 +47,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           <span>
-            Payment Detected ({confirmations}/{requiredConfirmations} Confirmations)
+            {t.paymentDetected} ({confirmations}/{requiredConfirmations} {t.confirmations})
           </span>
         </div>
       );
@@ -55,7 +58,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Payment Confirmed</span>
+          <span>{t.paymentConfirmed}</span>
         </div>
       );
 
@@ -63,7 +66,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-semibold">
           <AlertTriangle className="w-3.5 h-3.5" />
-          <span>Underpaid Amount</span>
+          <span>{t.underpaidAmount}</span>
         </div>
       );
 
@@ -71,7 +74,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-500/10 border border-gray-500/30 text-gray-400 text-xs font-semibold">
           <Clock className="w-3.5 h-3.5" />
-          <span>Invoice Expired</span>
+          <span>{t.invoiceExpired}</span>
         </div>
       );
 
@@ -80,7 +83,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       return (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
           <XCircle className="w-3.5 h-3.5" />
-          <span>Payment Failed</span>
+          <span>{t.paymentFailed}</span>
         </div>
       );
   }
