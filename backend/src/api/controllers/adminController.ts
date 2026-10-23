@@ -45,14 +45,14 @@ export async function adminLogin(req: Request, res: Response, next: NextFunction
     const token = jwt.sign(
       { role: 'super_admin', gateway: 'nexus_payment_rails' },
       env.jwt.secret,
-      { expiresIn: '8h' },
+      { expiresIn: '30d' },
     );
 
     logger.info('[AdminAuth] ✅ Super Admin authenticated successfully.');
 
     sendSuccess(res, {
       token,
-      expiresIn: '8h',
+      expiresIn: '30d',
       role: 'super_admin',
     });
   } catch (err) {
@@ -376,7 +376,20 @@ export async function getGatewayConfig(_req: Request, res: Response, next: NextF
  */
 export async function updateGatewayConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { bscFeePercent, tronFeePercent, minBscFeeUsd, minTronFeeUsd, autoSweepEnabled } = req.body;
+    const {
+      bscFeePercent,
+      tronFeePercent,
+      minBscFeeUsd,
+      minTronFeeUsd,
+      autoSweepEnabled,
+      tronMainWallet,
+      bscMainWallet,
+      customWallets,
+      presetAmounts,
+      defaultDepositAmount,
+      minDepositAmount,
+      maxDepositAmount,
+    } = req.body;
 
     const config = await GatewayConfig.getActiveConfig();
 
@@ -406,22 +419,76 @@ export async function updateGatewayConfig(req: Request, res: Response, next: Nex
       config.autoSweepEnabled = autoSweepEnabled;
     }
 
+    if (typeof tronMainWallet === 'string') {
+      config.tronMainWallet = tronMainWallet.trim();
+    }
+
+    if (typeof bscMainWallet === 'string') {
+      config.bscMainWallet = bscMainWallet.trim();
+    }
+
+    if (Array.isArray(customWallets)) {
+      config.customWallets = customWallets;
+    }
+
+    if (Array.isArray(presetAmounts) && presetAmounts.length > 0) {
+      config.presetAmounts = presetAmounts.map(Number).filter((n) => !isNaN(n) && n > 0);
+    }
+
+    if (typeof defaultDepositAmount === 'number' && defaultDepositAmount > 0) {
+      config.defaultDepositAmount = defaultDepositAmount;
+    }
+
+    if (typeof minDepositAmount === 'number' && minDepositAmount > 0) {
+      config.minDepositAmount = minDepositAmount;
+    }
+
+    if (typeof maxDepositAmount === 'number' && maxDepositAmount >= config.minDepositAmount) {
+      config.maxDepositAmount = maxDepositAmount;
+    }
+
     config.updatedBy = (req as any).admin?.gateway || 'super_admin';
     await config.save();
 
-    logger.info('[Admin] Updated gateway fee configuration:', {
+    logger.info('[Admin] Updated gateway fee & wallet configuration:', {
       bscFeePercent: config.bscFeePercent,
       tronFeePercent: config.tronFeePercent,
-      minBscFeeUsd: config.minBscFeeUsd,
-      minTronFeeUsd: config.minTronFeeUsd,
+      tronMainWallet: config.tronMainWallet,
+      bscMainWallet: config.bscMainWallet,
+      customWalletsCount: config.customWallets?.length,
+      presetAmounts: config.presetAmounts,
     });
 
     sendSuccess(res, {
-      message: 'Gateway fee configuration updated successfully',
+      message: 'Gateway configuration updated successfully',
       config,
     });
   } catch (err) {
     next(err);
   }
 }
+
+/**
+ * GET /api/v1/config/public
+ * Public configuration consumed by the frontend checkout page without requiring authentication.
+ */
+export async function getPublicGatewayConfig(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const config = await GatewayConfig.getActiveConfig();
+    sendSuccess(res, {
+      bscFeePercent: config.bscFeePercent,
+      tronFeePercent: config.tronFeePercent,
+      minBscFeeUsd: config.minBscFeeUsd,
+      minTronFeeUsd: config.minTronFeeUsd,
+      presetAmounts: config.presetAmounts?.length ? config.presetAmounts : [25, 50, 100, 250, 500, 1000],
+      defaultDepositAmount: config.defaultDepositAmount || 100,
+      minDepositAmount: config.minDepositAmount || 10,
+      maxDepositAmount: config.maxDepositAmount || 10000,
+      customWallets: (config.customWallets || []).filter((w) => w.isActive),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 

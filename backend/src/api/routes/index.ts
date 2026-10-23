@@ -11,11 +11,15 @@ import { Router } from 'express';
 import healthRouter from './health';
 import invoiceRouter from './invoiceRoutes';
 import adminRouter from './adminRoutes';
+import configRouter from './configRoutes';
 
 const router = Router();
 
 // Health check — no auth
 router.use('/health', healthRouter);
+
+// Public configuration for checkout portal
+router.use('/config', configRouter);
 
 // Invoice management & status queries
 router.use('/invoices', invoiceRouter);

@@ -6,12 +6,14 @@
  * Institutional Network Selector for USDT deposits.
  * Features official SVG iconography for Binance Smart Chain and TRON,
  * transparent fee estimations, and instant protocol badges.
+ * Fully localized across all 8 supported languages.
  */
 
 import React from 'react';
 import { CryptoNetwork } from '../types/invoice';
 import { NETWORK_FEES } from '../lib/api';
 import { Zap, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface NetworkSelectorProps {
   selectedNetwork: CryptoNetwork;
@@ -24,16 +26,16 @@ export const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   onSelect,
   disabled = false,
 }) => {
+  const { t } = useLanguage();
   const bscFee = NETWORK_FEES[CryptoNetwork.BSC];
-  const tronFee = NETWORK_FEES[CryptoNetwork.TRON];
 
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-2">
         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          Select Deposit Network
+          {t.selectDepositNetwork}
         </label>
-        <span className="text-[11px] text-cyan-400 font-medium">USDT Stablecoin</span>
+        <span className="text-[11px] text-cyan-400 font-medium">{t.stablecoinBadge}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -73,13 +75,15 @@ export const NetworkSelector: React.FC<NetworkSelectorProps> = ({
             <div className="flex items-center justify-between text-gray-400">
               <span className="flex items-center gap-1">
                 <Zap className="w-3 h-3 text-yellow-400" />
-                <span>Speed</span>
+                <span>{t.speed}</span>
               </span>
-              <span className="font-medium text-yellow-300">{bscFee.blockTimeEstimate}</span>
+              <span className="font-medium text-yellow-300 font-mono">{bscFee.blockTimeEstimate}</span>
             </div>
             <div className="flex items-center justify-between text-gray-400">
-              <span>Network Gas</span>
-              <span className="text-emerald-400 font-mono font-medium">~$0.05 (Subsidized)</span>
+              <span>{t.networkGas}</span>
+              <span className="text-emerald-400 font-mono font-medium">
+                ~$0.05 ({t.subsidized})
+              </span>
             </div>
           </div>
         </button>
@@ -119,13 +123,15 @@ export const NetworkSelector: React.FC<NetworkSelectorProps> = ({
             <div className="flex items-center justify-between text-gray-400">
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3 text-red-400" />
-                <span>Liquidity</span>
+                <span>{t.speed}</span>
               </span>
-              <span className="font-medium text-red-300">Global Standard</span>
+              <span className="font-medium text-red-300 font-mono">~60s</span>
             </div>
             <div className="flex items-center justify-between text-gray-400">
-              <span>Network Gas</span>
-              <span className="text-emerald-400 font-mono font-medium">~$1.00 (Subsidized)</span>
+              <span>{t.networkGas}</span>
+              <span className="text-emerald-400 font-mono font-medium">
+                ~$1.00 ({t.subsidized})
+              </span>
             </div>
           </div>
         </button>

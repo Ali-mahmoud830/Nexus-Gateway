@@ -15,6 +15,7 @@ import { ethers } from 'ethers';
 import TronWeb from 'tronweb';
 import { env } from '../../config/env';
 import { IInvoiceDocument, InvoiceStatus, CryptoNetwork } from '../../models/Invoice';
+import { GatewayConfig } from '../../models/GatewayConfig';
 import { logger } from '../../utils/logger';
 import { deriveChildPrivateKey } from '../hdWallet/addressManager';
 import { gasStation } from './gasStation';
@@ -30,7 +31,8 @@ const TRON_USDT_DECIMALS = 6;
  */
 export async function sweepTronInvoice(invoice: IInvoiceDocument): Promise<SweepResult> {
   const { invoiceId, depositAddress, derivationIndex } = invoice;
-  const coldWallet = env.wallets.tronMainWallet;
+  const config = await GatewayConfig.getActiveConfig();
+  const coldWallet = (config.tronMainWallet && config.tronMainWallet.trim()) || env.wallets.tronMainWallet;
 
   logger.info(`[TronSweeper] Starting sweep for invoice ${invoiceId} (${depositAddress} -> ${coldWallet})`);
 

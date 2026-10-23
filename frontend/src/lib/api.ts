@@ -51,6 +51,19 @@ export const apiClient = axios.create({
   },
 });
 
+// Intercept 401 Unauthorized responses to notify the admin page to trigger re-auth
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('nexus_admin_unauthorized'));
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 export interface CreateInvoicePayload {
   userId: string;
   amount: number;
@@ -298,4 +311,37 @@ export async function updateAdminGatewayConfig(token: string, configData: any): 
   }
   return response.data.data;
 }
+
+export interface PublicCustomWallet {
+  id: string;
+  name: string;
+  accountNumber: string;
+  accountTitle: string;
+  instructions?: string;
+  isActive: boolean;
+}
+
+export interface PublicConfigData {
+  bscFeePercent: number;
+  tronFeePercent: number;
+  minBscFeeUsd: number;
+  minTronFeeUsd: number;
+  presetAmounts: number[];
+  defaultDepositAmount: number;
+  minDepositAmount: number;
+  maxDepositAmount: number;
+  customWallets: PublicCustomWallet[];
+}
+
+/**
+ * Fetches public configuration (presets, active digital wallets, fee rates).
+ */
+export async function getPublicConfig(): Promise<PublicConfigData> {
+  const response = await apiClient.get<ApiResponse<PublicConfigData>>('/config/public');
+  if (!response.data.success || !response.data.data) {
+    throw new Error('Failed to load public config');
+  }
+  return response.data.data;
+}
+
 

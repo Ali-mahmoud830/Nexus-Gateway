@@ -143,6 +143,15 @@ export interface AdminApiKey {
   createdAt: string;
 }
 
+export interface AdminCustomWallet {
+  id: string;
+  name: string;
+  accountNumber: string;
+  accountTitle: string;
+  instructions?: string;
+  isActive: boolean;
+}
+
 export interface GatewayConfigData {
   singletonKey: string;
   bscFeePercent: number;
@@ -150,8 +159,16 @@ export interface GatewayConfigData {
   minBscFeeUsd: number;
   minTronFeeUsd: number;
   autoSweepEnabled: boolean;
+  tronMainWallet?: string;
+  bscMainWallet?: string;
+  customWallets?: AdminCustomWallet[];
+  presetAmounts?: number[];
+  defaultDepositAmount?: number;
+  minDepositAmount?: number;
+  maxDepositAmount?: number;
   updatedBy?: string;
   updatedAt?: string;
 }
+
 
 

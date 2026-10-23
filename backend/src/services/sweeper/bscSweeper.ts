@@ -14,6 +14,7 @@
 import { ethers } from 'ethers';
 import { env } from '../../config/env';
 import { IInvoiceDocument, InvoiceStatus, CryptoNetwork } from '../../models/Invoice';
+import { GatewayConfig } from '../../models/GatewayConfig';
 import { logger } from '../../utils/logger';
 import { bscRpcManager } from '../blockchain/rpcManager';
 import { deriveChildPrivateKey } from '../hdWallet/addressManager';
@@ -36,7 +37,8 @@ const BSC_USDT_DECIMALS = 18;
  */
 export async function sweepBscInvoice(invoice: IInvoiceDocument): Promise<SweepResult> {
   const { invoiceId, depositAddress, derivationIndex } = invoice;
-  const coldWallet = env.wallets.bscMainWallet;
+  const config = await GatewayConfig.getActiveConfig();
+  const coldWallet = (config.bscMainWallet && config.bscMainWallet.trim()) || env.wallets.bscMainWallet;
 
   logger.info(`[BscSweeper] Starting sweep for invoice ${invoiceId} (${depositAddress} -> ${coldWallet})`);
 

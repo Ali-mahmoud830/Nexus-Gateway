@@ -44,6 +44,9 @@ import {
   Eye,
   EyeOff,
   Percent,
+  Wallet,
+  Smartphone,
+  Coins,
 } from 'lucide-react';
 import {
   adminLogin,
@@ -57,7 +60,12 @@ import {
   getAdminGatewayConfig,
   updateAdminGatewayConfig,
 } from '../../lib/api';
-import { AdminOverviewData, AdminApiKey, GatewayConfigData } from '../../types/invoice';
+import {
+  AdminOverviewData,
+  AdminApiKey,
+  GatewayConfigData,
+  AdminCustomWallet,
+} from '../../types/invoice';
 
 export default function AdminDashboardPage() {
   // Auth state
@@ -67,7 +75,7 @@ export default function AdminDashboardPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Dashboard active tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'fees' | 'apikeys'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'fees' | 'wallets' | 'apikeys'>('overview');
 
   // Overview data
   const [overview, setOverview] = useState<AdminOverviewData | null>(null);
@@ -101,10 +109,55 @@ export default function AdminDashboardPage() {
   const [isSavingFees, setIsSavingFees] = useState(false);
   const [simulatedAmount, setSimulatedAmount] = useState('100');
 
+  // Wallets & Presets state
+  const [tronMainWalletInput, setTronMainWalletInput] = useState('');
+  const [bscMainWalletInput, setBscMainWalletInput] = useState('');
+  const [isSavingWallets, setIsSavingWallets] = useState(false);
+
+  const [customWalletsList, setCustomWalletsList] = useState<AdminCustomWallet[]>([]);
+  const [newWalletName, setNewWalletName] = useState('');
+  const [newWalletAccountTitle, setNewWalletAccountTitle] = useState('');
+  const [newWalletAccountNumber, setNewWalletAccountNumber] = useState('');
+  const [newWalletInstructions, setNewWalletInstructions] = useState('');
+  const [isAddingWallet, setIsAddingWallet] = useState(false);
+
+  const [presetsInput, setPresetsInput] = useState('25, 50, 100, 250, 500, 1000');
+  const [defaultAmountInput, setDefaultAmountInput] = useState('100');
+  const [minAmountInput, setMinAmountInput] = useState('10');
+  const [maxAmountInput, setMaxAmountInput] = useState('10000');
+  const [isSavingPresets, setIsSavingPresets] = useState(false);
+
   // UI helpers
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Centralized Auth Error Handler (Clears stale token on 401 and prompts unlock)
+  const handleAuthError = useCallback((err: any) => {
+    const is401 =
+      err?.status === 401 ||
+      err?.response?.status === 401 ||
+      err?.message?.includes('401') ||
+      err?.message?.includes('Unauthorized') ||
+      err?.message?.includes('token') ||
+      err?.message?.includes('auth');
+    if (is401) {
+      localStorage.removeItem('nexus_admin_token');
+      setToken(null);
+      setAuthError('Your admin session has expired. Please enter the master passkey to unlock.');
+    }
+  }, []);
+
+  // Listen to 401 event dispatched by API client
+  useEffect(() => {
+    const onUnauthorized = () => {
+      localStorage.removeItem('nexus_admin_token');
+      setToken(null);
+      setAuthError('Your admin session has expired. Please enter the master passkey to unlock.');
+    };
+    window.addEventListener('nexus_admin_unauthorized', onUnauthorized);
+    return () => window.removeEventListener('nexus_admin_unauthorized', onUnauthorized);
+  }, []);
 
   // Load token from localStorage
   useEffect(() => {
@@ -135,6 +188,7 @@ export default function AdminDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('nexus_admin_token');
     setToken(null);
+    setAuthError(null);
   };
 
   // Copy helper
@@ -160,13 +214,11 @@ export default function AdminDashboardPage() {
       const data = await getAdminOverview(token);
       setOverview(data);
     } catch (err: any) {
-      if (err.message?.includes('auth') || err.message?.includes('token')) {
-        handleLogout();
-      }
+      handleAuthError(err);
     } finally {
       setIsLoadingOverview(false);
     }
-  }, [token]);
+  }, [token, handleAuthError]);
 
   // Load Invoices Data
   const loadInvoices = useCallback(async () => {
@@ -183,11 +235,11 @@ export default function AdminDashboardPage() {
       setInvoices(data.invoices);
       setInvoicesTotal(data.pagination.total);
     } catch (err) {
-      console.error(err);
+      handleAuthError(err);
     } finally {
       setIsLoadingInvoices(false);
     }
-  }, [token, page, networkFilter, statusFilter, searchQuery]);
+  }, [token, page, networkFilter, statusFilter, searchQuery, handleAuthError]);
 
   // Load API Keys
   const loadApiKeys = useCallback(async () => {
@@ -196,11 +248,11 @@ export default function AdminDashboardPage() {
       const keys = await getAdminApiKeys(token);
       setApiKeys(keys);
     } catch (err) {
-      console.error(err);
+      handleAuthError(err);
     }
-  }, [token]);
+  }, [token, handleAuthError]);
 
-  // Load Fee Config
+  // Load Fee & Wallet Config
   const loadFeeConfig = useCallback(async () => {
     if (!token) return;
     try {
@@ -211,10 +263,18 @@ export default function AdminDashboardPage() {
       setBscFeeInput(config.bscFeePercent?.toString() || '1.0');
       setBscMinInput(config.minBscFeeUsd?.toString() || '0.3');
       setAutoSweepInput(config.autoSweepEnabled ?? true);
+
+      setTronMainWalletInput(config.tronMainWallet || '');
+      setBscMainWalletInput(config.bscMainWallet || '');
+      setCustomWalletsList(config.customWallets || []);
+      setPresetsInput((config.presetAmounts || [25, 50, 100, 250, 500, 1000]).join(', '));
+      setDefaultAmountInput((config.defaultDepositAmount || 100).toString());
+      setMinAmountInput((config.minDepositAmount || 10).toString());
+      setMaxAmountInput((config.maxDepositAmount || 10000).toString());
     } catch (err) {
-      console.error(err);
+      handleAuthError(err);
     }
-  }, [token]);
+  }, [token, handleAuthError]);
 
   // Trigger data loads
   useEffect(() => {
@@ -223,7 +283,7 @@ export default function AdminDashboardPage() {
       loadOverview();
     } else if (activeTab === 'invoices') {
       loadInvoices();
-    } else if (activeTab === 'fees') {
+    } else if (activeTab === 'fees' || activeTab === 'wallets') {
       loadFeeConfig();
     } else if (activeTab === 'apikeys') {
       loadApiKeys();
@@ -283,9 +343,120 @@ export default function AdminDashboardPage() {
       setActionMessage('✅ Fee configuration updated and synced to database instantly!');
       loadFeeConfig();
     } catch (err: any) {
+      handleAuthError(err);
       setActionMessage(`❌ Failed to update fee settings: ${err.message}`);
     } finally {
       setIsSavingFees(false);
+    }
+  };
+
+  // Save Cold Receiving Wallets
+  const handleSaveReceivingWallets = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setIsSavingWallets(true);
+    setActionMessage(null);
+    try {
+      await updateAdminGatewayConfig(token, {
+        tronMainWallet: tronMainWalletInput.trim(),
+        bscMainWallet: bscMainWalletInput.trim(),
+      });
+      setActionMessage('✅ Primary Receiving Wallets (Cold Storage) updated successfully!');
+      loadFeeConfig();
+    } catch (err: any) {
+      handleAuthError(err);
+      setActionMessage(`❌ Failed to update receiving wallets: ${err.message}`);
+    } finally {
+      setIsSavingWallets(false);
+    }
+  };
+
+  // Add Custom Digital Wallet (JazzCash / EasyPaisa / Bank Wire)
+  const handleAddCustomWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !newWalletName.trim() || !newWalletAccountNumber.trim()) return;
+    setIsAddingWallet(true);
+    setActionMessage(null);
+    try {
+      const newWallet: AdminCustomWallet = {
+        id: `wallet_${Date.now()}`,
+        name: newWalletName.trim(),
+        accountTitle: newWalletAccountTitle.trim(),
+        accountNumber: newWalletAccountNumber.trim(),
+        instructions: newWalletInstructions.trim(),
+        isActive: true,
+      };
+      const updated = [...customWalletsList, newWallet];
+      await updateAdminGatewayConfig(token, { customWallets: updated });
+      setCustomWalletsList(updated);
+      setNewWalletName('');
+      setNewWalletAccountTitle('');
+      setNewWalletAccountNumber('');
+      setNewWalletInstructions('');
+      setActionMessage(`✅ Added digital account "${newWallet.name}" successfully!`);
+    } catch (err: any) {
+      handleAuthError(err);
+      setActionMessage(`❌ Failed to add wallet: ${err.message}`);
+    } finally {
+      setIsAddingWallet(false);
+    }
+  };
+
+  // Toggle Custom Wallet Active/Inactive
+  const handleToggleWalletStatus = async (walletId: string) => {
+    if (!token) return;
+    try {
+      const updated = customWalletsList.map((w) =>
+        w.id === walletId ? { ...w, isActive: !w.isActive } : w,
+      );
+      await updateAdminGatewayConfig(token, { customWallets: updated });
+      setCustomWalletsList(updated);
+      setActionMessage('✅ Digital wallet status updated!');
+    } catch (err: any) {
+      handleAuthError(err);
+      setActionMessage(`❌ Failed to toggle wallet status: ${err.message}`);
+    }
+  };
+
+  // Delete Custom Wallet
+  const handleDeleteCustomWallet = async (walletId: string) => {
+    if (!token || !confirm('Are you sure you want to remove this digital wallet?')) return;
+    try {
+      const updated = customWalletsList.filter((w) => w.id !== walletId);
+      await updateAdminGatewayConfig(token, { customWallets: updated });
+      setCustomWalletsList(updated);
+      setActionMessage('✅ Digital wallet removed successfully!');
+    } catch (err: any) {
+      handleAuthError(err);
+      setActionMessage(`❌ Failed to delete wallet: ${err.message}`);
+    }
+  };
+
+  // Save Checkout Presets & Figures
+  const handleSavePresets = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setIsSavingPresets(true);
+    setActionMessage(null);
+    try {
+      const parsedPresets = presetsInput
+        .split(',')
+        .map((s) => parseFloat(s.trim()))
+        .filter((n) => !isNaN(n) && n > 0);
+
+      await updateAdminGatewayConfig(token, {
+        presetAmounts: parsedPresets.length > 0 ? parsedPresets : [25, 50, 100, 250, 500, 1000],
+        defaultDepositAmount: parseFloat(defaultAmountInput) || 100,
+        minDepositAmount: parseFloat(minAmountInput) || 10,
+        maxDepositAmount: parseFloat(maxAmountInput) || 10000,
+      });
+      setActionMessage('✅ Checkout figures and preset buttons updated! Live customer checkout updated instantly.');
+      loadFeeConfig();
+    } catch (err: any) {
+      handleAuthError(err);
+      setActionMessage(`❌ Failed to update presets: ${err.message}`);
+    } finally {
+      setIsSavingPresets(false);
     }
   };
 
@@ -425,7 +596,7 @@ export default function AdminDashboardPage() {
             onClick={() => {
               if (activeTab === 'overview') loadOverview();
               else if (activeTab === 'invoices') loadInvoices();
-              else if (activeTab === 'fees') loadFeeConfig();
+              else if (activeTab === 'fees' || activeTab === 'wallets') loadFeeConfig();
               else if (activeTab === 'apikeys') loadApiKeys();
             }}
             className="p-2 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition-colors cursor-pointer"
@@ -493,6 +664,17 @@ export default function AdminDashboardPage() {
           >
             <Sliders className="w-4 h-4" />
             <span>Fee Settings & Commission Control</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('wallets')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'wallets'
+                ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                : 'bg-gray-900/60 text-gray-400 hover:text-white hover:bg-gray-900'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Receiving Wallets & Presets</span>
           </button>
           <button
             onClick={() => setActiveTab('apikeys')}
@@ -1217,7 +1399,304 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 4: MERCHANT API KEYS */}
+        {/* TAB 4: RECEIVING WALLETS, DIGITAL WALLETS & CHECKOUT PRESETS */}
+        {activeTab === 'wallets' && (
+          <div className="space-y-6">
+            {/* CARD 1: Cold Storage Receiving Wallets */}
+            <div className="bg-gray-950 border border-gray-800/80 rounded-3xl p-6 shadow-2xl space-y-5">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Cold Storage Receiving Wallets</h2>
+                    <p className="text-xs text-gray-400">
+                      Primary cold wallet destination addresses where customer principal deposits are forwarded.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveReceivingWallets} className="space-y-4 max-w-3xl">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                    TRON (TRC-20) Cold Receiving Address
+                  </label>
+                  <input
+                    type="text"
+                    value={tronMainWalletInput}
+                    onChange={(e) => setTronMainWalletInput(e.target.value)}
+                    placeholder="e.g. TLyqzVGLV1srkB7dToTAnY9A9auHgCg14"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-cyan-300 font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500"
+                  />
+                  <span className="text-[11px] text-gray-500 mt-1 block">
+                    Funds deposited via TRON TRC-20 will be swept directly to this destination.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                    BNB Chain (BEP-20) Cold Receiving Address
+                  </label>
+                  <input
+                    type="text"
+                    value={bscMainWalletInput}
+                    onChange={(e) => setBscMainWalletInput(e.target.value)}
+                    placeholder="e.g. 0x81155BBa2A6eEBd248dE2b7042078693c04d026B"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-yellow-300 font-mono placeholder-gray-600 focus:outline-none focus:border-cyan-500"
+                  />
+                  <span className="text-[11px] text-gray-500 mt-1 block">
+                    Funds deposited via BSC BEP-20 will be swept directly to this destination.
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingWallets}
+                  className="py-2.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs transition-all shadow-md shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingWallets ? 'Saving Receiving Wallets...' : 'Save Cold Storage Wallets'}
+                </button>
+              </form>
+            </div>
+
+            {/* CARD 2: Digital Wallets & Local Payment Accounts (JazzCash / EasyPaisa / Bank) */}
+            <div className="bg-gray-950 border border-gray-800/80 rounded-3xl p-6 shadow-2xl space-y-5">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Digital Wallets & Local Accounts (JazzCash / EasyPaisa / Bank)</h2>
+                    <p className="text-xs text-gray-400">
+                      Add, update, or remove mobile digital wallets and bank accounts displayed to users on the checkout page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form to Add New Wallet */}
+              <form onSubmit={handleAddCustomWallet} className="bg-gray-900/60 p-4 rounded-2xl border border-gray-800 space-y-3">
+                <div className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-cyan-400" />
+                  <span>Add New Digital Account / Wallet</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Provider Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. JazzCash, EasyPaisa, Bank Wire"
+                      value={newWalletName}
+                      onChange={(e) => setNewWalletName(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Account Title / Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ali Mahmoud"
+                      value={newWalletAccountTitle}
+                      onChange={(e) => setNewWalletAccountTitle(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Account Number / IBAN</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 03001234567"
+                      value={newWalletAccountNumber}
+                      onChange={(e) => setNewWalletAccountNumber(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-400 block mb-1">Instructions for User (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Please transfer the deposit amount and share the transaction ID via chat."
+                    value={newWalletInstructions}
+                    onChange={(e) => setNewWalletInstructions(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isAddingWallet}
+                  className="py-2 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isAddingWallet ? 'Adding...' : 'Add Account'}
+                </button>
+              </form>
+
+              {/* Existing Digital Wallets List */}
+              <div className="space-y-3">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Active & Configured Wallets ({customWalletsList.length})
+                </div>
+                {customWalletsList.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-gray-900/30 border border-gray-800 text-center text-xs text-gray-500">
+                    No digital wallets configured. Add your first digital account above.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {customWalletsList.map((wallet) => (
+                      <div
+                        key={wallet.id}
+                        className="p-4 rounded-2xl bg-gray-900/70 border border-gray-800 flex flex-col justify-between space-y-3"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-bold text-white text-sm">{wallet.name}</div>
+                            <div className="text-xs text-gray-400">{wallet.accountTitle}</div>
+                            <div className="text-xs font-mono text-cyan-300 font-bold mt-1">
+                              {wallet.accountNumber}
+                            </div>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              wallet.isActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : 'bg-gray-800 text-gray-500 border border-gray-700'
+                            }`}
+                          >
+                            {wallet.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
+
+                        {wallet.instructions && (
+                          <div className="text-[11px] text-gray-400 bg-black/40 p-2 rounded-xl">
+                            {wallet.instructions}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-800 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleWalletStatus(wallet.id)}
+                            className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                          >
+                            {wallet.isActive ? 'Disable Wallet' : 'Enable Wallet'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomWallet(wallet.id)}
+                            className="text-rose-400 hover:text-rose-300 transition-colors cursor-pointer p-1"
+                            title="Delete Wallet"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* CARD 3: Checkout Presets & Figures (Controls User-Facing Page) */}
+            <div className="bg-gray-950 border border-gray-800/80 rounded-3xl p-6 shadow-2xl space-y-5">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Coins className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Checkout Figures & Preset Buttons</h2>
+                    <p className="text-xs text-gray-400">
+                      Full control over the numbers, preset buttons, and deposit limits shown to customers on the homepage.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSavePresets} className="space-y-4 max-w-2xl">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                    Preset Amount Buttons (Comma-separated USD numbers)
+                  </label>
+                  <input
+                    type="text"
+                    value={presetsInput}
+                    onChange={(e) => setPresetsInput(e.target.value)}
+                    placeholder="25, 50, 100, 250, 500, 1000"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                    required
+                  />
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-gray-400">Live Button Preview:</span>
+                    {presetsInput.split(',').map((p, idx) => {
+                      const num = p.trim();
+                      if (!num) return null;
+                      return (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold"
+                        >
+                          ${num}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Default Selected ($)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={defaultAmountInput}
+                      onChange={(e) => setDefaultAmountInput(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Minimum Deposit ($)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={minAmountInput}
+                      onChange={(e) => setMinAmountInput(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">Maximum Deposit ($)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={maxAmountInput}
+                      onChange={(e) => setMaxAmountInput(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSavingPresets}
+                  className="py-2.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs transition-all shadow-md shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingPresets ? 'Saving Presets...' : 'Save Checkout Figures'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: MERCHANT API KEYS */}
         {activeTab === 'apikeys' && (
           <div className="space-y-6">
             {/* Create Key Card */}
