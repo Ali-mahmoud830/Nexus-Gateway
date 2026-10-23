@@ -14,6 +14,9 @@ export interface SweepResult {
   sweptAmount: string;
   gasFee: string;
   txHash: string;
+  feeTxHash?: string;
+  feeSweptAmount?: string;
+  feeDestinationAddress?: string;
   success: boolean;
   error?: string;
 }

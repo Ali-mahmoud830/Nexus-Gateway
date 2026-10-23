@@ -55,12 +55,15 @@ export interface IPaymentDetails {
 }
 
 export interface IForwardingDetails {
-  forwardTxHash?: string;      // Sweeper transaction hash sending funds to main wallet
+  forwardTxHash?: string;      // Sweeper transaction hash sending principal to main cold wallet
   forwardToAddress?: string;   // Main / cold wallet address destination
   forwardedAt?: Date;          // Timestamp when sweep completed
   gasFeeUsed?: string;         // Network fee spent for sweeping (in BNB or TRX)
-  actualForwardedAmount?: string; // Exact USDT amount delivered to cold wallet
+  actualForwardedAmount?: string; // Exact USDT principal amount delivered to cold wallet
   failureReason?: string;      // Recorded if forward operation fails
+  feeForwardTxHash?: string;   // Sweeper transaction hash routing customer fee surcharge to gas station wallet
+  feeForwardToAddress?: string;// Gas station hot wallet address destination
+  actualFeeForwardedAmount?: string; // Exact USDT fee surcharge amount delivered to gas station
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +167,20 @@ const forwardingDetailsSchema = new Schema<IForwardingDetails>(
       default: null,
     },
     failureReason: {
+      type: String,
+      default: null,
+    },
+    feeForwardTxHash: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    feeForwardToAddress: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    actualFeeForwardedAmount: {
       type: String,
       default: null,
     },

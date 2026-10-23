@@ -49,8 +49,8 @@ export async function sweepTronInvoice(invoice: IInvoiceDocument): Promise<Sweep
 
     // 2. Query on-chain TRC-20 USDT balance
     const contractReadOnly = await readOnlyTronWeb.contract().at(env.tron.usdtContract);
-    const rawBalanceBn = await contractReadOnly.balanceOf(depositAddress).call();
-    const rawBalance = rawBalanceBn.toString();
+    const onChainBalance = await contractReadOnly.balanceOf(depositAddress).call();
+    const rawBalance = onChainBalance.toString();
     const formattedBalance = ethers.formatUnits(rawBalance, TRON_USDT_DECIMALS);
     const balanceNum = parseFloat(formattedBalance);
 
@@ -75,8 +75,20 @@ export async function sweepTronInvoice(invoice: IInvoiceDocument): Promise<Sweep
       };
     }
 
-    // 3. Ensure deposit wallet has TRX for energy / fee burn
-    await gasStation.ensureTronGas(depositAddress);
+    // 3. Determine if dual routing is required (Principal -> Cold Wallet, Fee -> Gas Station)
+    const gasStationAddress = gasStation.getTronAddress();
+    const feeNum = invoice.feeAmount && invoice.feeAmount > 0 ? invoice.feeAmount : 0;
+    const rawBalanceBn = BigInt(rawBalance);
+    const feeBn =
+      feeNum > 0 ? ethers.parseUnits(feeNum.toFixed(TRON_USDT_DECIMALS), TRON_USDT_DECIMALS) : 0n;
+    const shouldSplit =
+      feeBn > 0n &&
+      rawBalanceBn > feeBn &&
+      !!gasStationAddress &&
+      gasStationAddress.toLowerCase() !== coldWallet.toLowerCase();
+
+    // Ensure deposit wallet has TRX for energy / fee burn
+    await gasStation.ensureTronGas(depositAddress, shouldSplit);
 
     // 4. Ephemerally derive child private key
     const childKey = deriveChildPrivateKey(CryptoNetwork.TRON, derivationIndex);
@@ -99,40 +111,101 @@ export async function sweepTronInvoice(invoice: IInvoiceDocument): Promise<Sweep
       tempTronWeb.setHeader({ 'TRON-PRO-API-KEY': env.tron.apiKey });
     }
 
-    logger.info(
-      `[TronSweeper] Broadcasting sweep of ${formattedBalance} USDT from ${depositAddress} to cold wallet ${coldWallet}…`,
-    );
-
     const contractWithSigner = await tempTronWeb.contract().at(env.tron.usdtContract);
-    const txHash = await contractWithSigner.transfer(coldWallet, rawBalance).send();
 
-    if (!txHash) {
-      throw new Error(`[TronSweeper] Transaction broadcast returned empty hash for invoice ${invoiceId}`);
+    if (shouldSplit) {
+      // DUAL ROUTING: Split deposit into Net Principal -> Cold Wallet and Fee -> Gas Station
+      const netBn = rawBalanceBn - feeBn;
+      const netFormatted = ethers.formatUnits(netBn.toString(), TRON_USDT_DECIMALS);
+      const feeFormatted = ethers.formatUnits(feeBn.toString(), TRON_USDT_DECIMALS);
+
+      logger.info(
+        `[TronSweeper] Dual-sweep for invoice ${invoiceId}: Principal ${netFormatted} USDT -> ${coldWallet}, Fee ${feeFormatted} USDT -> ${gasStationAddress}`,
+      );
+
+      // Step 5a: Transfer Net Principal to Cold Wallet
+      const netTxHash = await contractWithSigner.transfer(coldWallet, netBn.toString()).send();
+      if (!netTxHash) {
+        throw new Error(`[TronSweeper] Principal transfer broadcast returned empty hash for invoice ${invoiceId}`);
+      }
+      logger.info(`[TronSweeper] ✅ Principal swept for invoice ${invoiceId}! TxHash: ${netTxHash}`);
+
+      // Pause 2.5 seconds to ensure clean nonce/sequence execution on TRON
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+
+      // Step 5b: Transfer Fee Surcharge to Gas Station
+      let feeTxHash = '';
+      try {
+        feeTxHash = await contractWithSigner.transfer(gasStationAddress, feeBn.toString()).send();
+        logger.info(`[TronSweeper] ✅ Fee surcharge swept to gas station for invoice ${invoiceId}! TxHash: ${feeTxHash}`);
+      } catch (feeErr) {
+        const feeErrMsg = feeErr instanceof Error ? feeErr.message : String(feeErr);
+        logger.error(`[TronSweeper] ⚠️ Fee transfer to gas station failed for invoice ${invoiceId}: ${feeErrMsg}`);
+      }
+
+      // 6. Update Invoice with complete dual-routing audit record
+      invoice.status = InvoiceStatus.FORWARDED;
+      invoice.forwardingDetails = {
+        forwardTxHash: netTxHash,
+        forwardToAddress: coldWallet,
+        forwardedAt: new Date(),
+        gasFeeUsed: 'BURN_TRX',
+        actualForwardedAmount: netFormatted,
+        feeForwardTxHash: feeTxHash || undefined,
+        feeForwardToAddress: gasStationAddress,
+        actualFeeForwardedAmount: feeFormatted,
+      };
+      await invoice.save();
+
+      return {
+        invoiceId,
+        network: CryptoNetwork.TRON,
+        depositAddress,
+        destinationAddress: coldWallet,
+        sweptAmount: netFormatted,
+        gasFee: 'BURN_TRX',
+        txHash: netTxHash,
+        feeTxHash: feeTxHash || undefined,
+        feeSweptAmount: feeFormatted,
+        feeDestinationAddress: gasStationAddress,
+        success: true,
+      };
+    } else {
+      // SINGLE TRANSFER: 100% of balance to Cold Wallet
+      logger.info(
+        `[TronSweeper] Broadcasting single sweep of ${formattedBalance} USDT from ${depositAddress} to cold wallet ${coldWallet}…`,
+      );
+
+      const txHash = await contractWithSigner.transfer(coldWallet, rawBalance).send();
+
+      if (!txHash) {
+        throw new Error(`[TronSweeper] Transaction broadcast returned empty hash for invoice ${invoiceId}`);
+      }
+
+      logger.info(`[TronSweeper] ✅ Sweep broadcasted for invoice ${invoiceId}! TxHash: ${txHash}`);
+
+      // 6. Update Invoice with audit record
+      invoice.status = InvoiceStatus.FORWARDED;
+      invoice.forwardingDetails = {
+        forwardTxHash: txHash,
+        forwardToAddress: coldWallet,
+        forwardedAt: new Date(),
+        gasFeeUsed: 'BURN_TRX',
+        actualForwardedAmount: formattedBalance,
+      };
+      await invoice.save();
+
+      return {
+        invoiceId,
+        network: CryptoNetwork.TRON,
+        depositAddress,
+        destinationAddress: coldWallet,
+        sweptAmount: formattedBalance,
+        gasFee: 'BURN_TRX',
+        txHash,
+        success: true,
+      };
     }
-
-    logger.info(`[TronSweeper] ✅ Sweep broadcasted for invoice ${invoiceId}! TxHash: ${txHash}`);
-
-    // 6. Update Invoice with complete audit record
-    invoice.status = InvoiceStatus.FORWARDED;
-    invoice.forwardingDetails = {
-      forwardTxHash: txHash,
-      forwardToAddress: coldWallet,
-      forwardedAt: new Date(),
-      gasFeeUsed: 'BURN_TRX',
-      actualForwardedAmount: formattedBalance,
-    };
-    await invoice.save();
-
-    return {
-      invoiceId,
-      network: CryptoNetwork.TRON,
-      depositAddress,
-      destinationAddress: coldWallet,
-      sweptAmount: formattedBalance,
-      gasFee: 'BURN_TRX',
-      txHash,
-      success: true,
-    };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     logger.error(`[TronSweeper] ❌ Sweep failed for invoice ${invoiceId}: ${errorMsg}`, {

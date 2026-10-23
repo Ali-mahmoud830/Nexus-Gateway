@@ -749,7 +749,7 @@ export default function AdminDashboardPage() {
                 <table className="w-full text-left text-xs text-gray-300">
                   <thead className="bg-gray-900/80 uppercase font-mono text-[10px] tracking-wider text-gray-400 border-b border-gray-800">
                     <tr>
-                      <th className="py-3.5 px-4">Invoice / Trader</th>
+                      <th className="py-3.5 px-4">Invoice / Customer ID</th>
                       <th className="py-3.5 px-4">Network</th>
                       <th className="py-3.5 px-4">Amounts (Deposit + Fee)</th>
                       <th className="py-3.5 px-4">Ephemeral Address & Private Key</th>
@@ -868,25 +868,82 @@ export default function AdminDashboardPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            {inv.paymentDetails?.txHash ? (
-                              <a
-                                href={
-                                  inv.network === 'BSC'
-                                    ? `https://bscscan.com/tx/${inv.paymentDetails.txHash}`
-                                    : `https://tronscan.org/#/transaction/${inv.paymentDetails.txHash}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-[11px]"
-                              >
-                                <span className="truncate max-w-[90px]">
-                                  {inv.paymentDetails.txHash}
-                                </span>
-                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                              </a>
-                            ) : (
-                              <span className="text-gray-600 text-[11px]">Awaiting tx</span>
-                            )}
+                            <div className="space-y-1">
+                              {inv.paymentDetails?.txHash ? (
+                                <div className="flex items-center gap-1 text-[11px]">
+                                  <span className="text-[9px] uppercase tracking-wider text-emerald-500 font-sans font-bold">
+                                    Dep:
+                                  </span>
+                                  <a
+                                    href={
+                                      inv.network === 'BSC'
+                                        ? `https://bscscan.com/tx/${inv.paymentDetails.txHash}`
+                                        : `https://tronscan.org/#/transaction/${inv.paymentDetails.txHash}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-mono"
+                                  >
+                                    <span className="truncate max-w-[80px]">
+                                      {inv.paymentDetails.txHash}
+                                    </span>
+                                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-gray-600 text-[11px]">Awaiting tx</span>
+                              )}
+
+                              {/* Forwarded Principal Tx to Cold Wallet */}
+                              {inv.forwardingDetails?.forwardTxHash && (
+                                <div className="flex items-center gap-1 text-[10px]">
+                                  <span className="text-[9px] uppercase tracking-wider text-indigo-400 font-sans font-bold">
+                                    Main:
+                                  </span>
+                                  <a
+                                    href={
+                                      inv.network === 'BSC'
+                                        ? `https://bscscan.com/tx/${inv.forwardingDetails.forwardTxHash}`
+                                        : `https://tronscan.org/#/transaction/${inv.forwardingDetails.forwardTxHash}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-indigo-300 hover:text-indigo-200 flex items-center gap-0.5 font-mono"
+                                    title="Principal swept to Main Cold Wallet"
+                                  >
+                                    <span className="truncate max-w-[70px]">
+                                      {inv.forwardingDetails.forwardTxHash}
+                                    </span>
+                                    <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                                  </a>
+                                </div>
+                              )}
+
+                              {/* Forwarded Fee Tx to Gas Station */}
+                              {inv.forwardingDetails?.feeForwardTxHash && (
+                                <div className="flex items-center gap-1 text-[10px]">
+                                  <span className="text-[9px] uppercase tracking-wider text-amber-400 font-sans font-bold">
+                                    Gas:
+                                  </span>
+                                  <a
+                                    href={
+                                      inv.network === 'BSC'
+                                        ? `https://bscscan.com/tx/${inv.forwardingDetails.feeForwardTxHash}`
+                                        : `https://tronscan.org/#/transaction/${inv.forwardingDetails.feeForwardTxHash}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-amber-300 hover:text-amber-200 flex items-center gap-0.5 font-mono"
+                                    title="Fee routed to Gas Station Wallet"
+                                  >
+                                    <span className="truncate max-w-[70px]">
+                                      {inv.forwardingDetails.feeForwardTxHash}
+                                    </span>
+                                    <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">

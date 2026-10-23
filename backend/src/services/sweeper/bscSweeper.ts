@@ -76,8 +76,19 @@ export async function sweepBscInvoice(invoice: IInvoiceDocument): Promise<SweepR
       };
     }
 
-    // 3. Ensure deposit wallet has BNB for gas
-    await gasStation.ensureBscGas(depositAddress);
+    // 3. Determine if dual routing is required (Principal -> Cold Wallet, Fee -> Gas Station)
+    const gasStationAddress = gasStation.getBscAddress();
+    const feeNum = invoice.feeAmount && invoice.feeAmount > 0 ? invoice.feeAmount : 0;
+    const feeBn =
+      feeNum > 0 ? ethers.parseUnits(feeNum.toFixed(6), BSC_USDT_DECIMALS) : 0n;
+    const shouldSplit =
+      feeBn > 0n &&
+      rawBalance > feeBn &&
+      !!gasStationAddress &&
+      gasStationAddress.toLowerCase() !== coldWallet.toLowerCase();
+
+    // Ensure deposit wallet has BNB for gas
+    await gasStation.ensureBscGas(depositAddress, shouldSplit);
 
     // 4. Ephemerally derive child private key
     const childKey = deriveChildPrivateKey(CryptoNetwork.BSC, derivationIndex);
@@ -94,43 +105,112 @@ export async function sweepBscInvoice(invoice: IInvoiceDocument): Promise<SweepR
     const signer = new ethers.Wallet(ephemeralPrivateKey, provider);
     const usdtContractWithSigner = new ethers.Contract(env.bsc.usdtContract, ERC20_ABI, signer);
 
-    logger.info(
-      `[BscSweeper] Broadcasting sweep of ${formattedBalance} USDT from ${depositAddress} to cold wallet ${coldWallet}…`,
-    );
+    if (shouldSplit) {
+      // DUAL ROUTING: Split deposit into Net Principal -> Cold Wallet and Fee -> Gas Station
+      const netBn = rawBalance - feeBn;
+      const netFormatted = ethers.formatUnits(netBn, BSC_USDT_DECIMALS);
+      const feeFormatted = ethers.formatUnits(feeBn, BSC_USDT_DECIMALS);
 
-    const tx = await usdtContractWithSigner['transfer'](coldWallet, rawBalance);
-    logger.info(`[BscSweeper] Sweep transaction broadcasted: ${tx.hash}. Awaiting confirmation…`);
+      logger.info(
+        `[BscSweeper] Dual-sweep for invoice ${invoiceId}: Principal ${netFormatted} USDT -> ${coldWallet}, Fee ${feeFormatted} USDT -> ${gasStationAddress}`,
+      );
 
-    const receipt = await tx.wait(1);
-    const gasUsed = receipt.gasUsed || 0n;
-    const gasPrice = receipt.gasPrice || 0n;
-    const gasFee = ethers.formatEther(gasUsed * gasPrice);
+      // Step 5a: Transfer Net Principal to Cold Wallet
+      const netTx = await usdtContractWithSigner['transfer'](coldWallet, netBn);
+      logger.info(`[BscSweeper] Principal transfer broadcasted: ${netTx.hash}. Awaiting confirmation…`);
+      const netReceipt = await netTx.wait(1);
 
-    logger.info(
-      `[BscSweeper] ✅ Sweep confirmed for invoice ${invoiceId}! TxHash: ${tx.hash}, GasFee: ${gasFee} BNB`,
-    );
+      // Step 5b: Transfer Fee Surcharge to Gas Station
+      let feeTxHash = '';
+      let feeGasUsed = 0n;
+      try {
+        const feeTx = await usdtContractWithSigner['transfer'](gasStationAddress, feeBn);
+        logger.info(`[BscSweeper] Fee surcharge broadcasted: ${feeTx.hash}. Awaiting confirmation…`);
+        const feeReceipt = await feeTx.wait(1);
+        feeTxHash = feeTx.hash;
+        feeGasUsed = feeReceipt.gasUsed || 0n;
+        logger.info(`[BscSweeper] ✅ Fee surcharge swept to gas station for invoice ${invoiceId}! TxHash: ${feeTxHash}`);
+      } catch (feeErr) {
+        const feeErrMsg = feeErr instanceof Error ? feeErr.message : String(feeErr);
+        logger.error(`[BscSweeper] ⚠️ Fee transfer to gas station failed for invoice ${invoiceId}: ${feeErrMsg}`);
+      }
 
-    // 6. Update Invoice with complete audit record
-    invoice.status = InvoiceStatus.FORWARDED;
-    invoice.forwardingDetails = {
-      forwardTxHash: tx.hash,
-      forwardToAddress: coldWallet,
-      forwardedAt: new Date(),
-      gasFeeUsed: gasFee,
-      actualForwardedAmount: formattedBalance,
-    };
-    await invoice.save();
+      // Calculate combined gas fee
+      const totalGasUsed = (netReceipt.gasUsed || 0n) + feeGasUsed;
+      const gasPrice = netReceipt.gasPrice || 0n;
+      const gasFee = ethers.formatEther(totalGasUsed * gasPrice);
 
-    return {
-      invoiceId,
-      network: CryptoNetwork.BSC,
-      depositAddress,
-      destinationAddress: coldWallet,
-      sweptAmount: formattedBalance,
-      gasFee,
-      txHash: tx.hash,
-      success: true,
-    };
+      logger.info(
+        `[BscSweeper] ✅ Dual-sweep confirmed for invoice ${invoiceId}! PrincipalTx: ${netTx.hash}, FeeTx: ${feeTxHash}, TotalGas: ${gasFee} BNB`,
+      );
+
+      // 6. Update Invoice with complete dual-routing audit record
+      invoice.status = InvoiceStatus.FORWARDED;
+      invoice.forwardingDetails = {
+        forwardTxHash: netTx.hash,
+        forwardToAddress: coldWallet,
+        forwardedAt: new Date(),
+        gasFeeUsed: gasFee,
+        actualForwardedAmount: netFormatted,
+        feeForwardTxHash: feeTxHash || undefined,
+        feeForwardToAddress: gasStationAddress,
+        actualFeeForwardedAmount: feeFormatted,
+      };
+      await invoice.save();
+
+      return {
+        invoiceId,
+        network: CryptoNetwork.BSC,
+        depositAddress,
+        destinationAddress: coldWallet,
+        sweptAmount: netFormatted,
+        gasFee,
+        txHash: netTx.hash,
+        feeTxHash: feeTxHash || undefined,
+        feeSweptAmount: feeFormatted,
+        feeDestinationAddress: gasStationAddress,
+        success: true,
+      };
+    } else {
+      // SINGLE TRANSFER: 100% of balance to Cold Wallet
+      logger.info(
+        `[BscSweeper] Broadcasting single sweep of ${formattedBalance} USDT from ${depositAddress} to cold wallet ${coldWallet}…`,
+      );
+
+      const tx = await usdtContractWithSigner['transfer'](coldWallet, rawBalance);
+      logger.info(`[BscSweeper] Sweep transaction broadcasted: ${tx.hash}. Awaiting confirmation…`);
+
+      const receipt = await tx.wait(1);
+      const gasUsed = receipt.gasUsed || 0n;
+      const gasPrice = receipt.gasPrice || 0n;
+      const gasFee = ethers.formatEther(gasUsed * gasPrice);
+
+      logger.info(
+        `[BscSweeper] ✅ Sweep confirmed for invoice ${invoiceId}! TxHash: ${tx.hash}, GasFee: ${gasFee} BNB`,
+      );
+
+      // 6. Update Invoice with audit record
+      invoice.status = InvoiceStatus.FORWARDED;
+      invoice.forwardingDetails = {
+        forwardTxHash: tx.hash,
+        forwardToAddress: coldWallet,
+        forwardedAt: new Date(),
+        gasFeeUsed: gasFee,
+        actualForwardedAmount: formattedBalance,
+      };
+      await invoice.save();
+
+      return {
+        invoiceId,
+        network: CryptoNetwork.BSC,
+        depositAddress,
+        destinationAddress: coldWallet,
+        sweptAmount: formattedBalance,
+        gasFee,
+        txHash: tx.hash,
+        success: true,
+      };
+    }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     logger.error(`[BscSweeper] ❌ Sweep failed for invoice ${invoiceId}: ${errorMsg}`, {

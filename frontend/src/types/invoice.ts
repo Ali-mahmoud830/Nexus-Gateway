@@ -51,6 +51,16 @@ export interface InvoiceDetails {
     totalAmount: number;
     isSubsidized: boolean;
   };
+  forwardingDetails?: {
+    forwardTxHash?: string;
+    forwardToAddress?: string;
+    forwardedAt?: string;
+    gasFeeUsed?: string;
+    actualForwardedAmount?: string;
+    feeForwardTxHash?: string;
+    feeForwardToAddress?: string;
+    actualFeeForwardedAmount?: string;
+  };
 }
 
 export interface SystemHealthData {

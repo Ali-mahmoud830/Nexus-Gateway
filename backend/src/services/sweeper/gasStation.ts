@@ -127,18 +127,41 @@ export class GasStation {
   }
 
   /**
+   * Returns the BSC Gas Station hot wallet address.
+   */
+  public getBscAddress(): string {
+    if (!this.bscWallet) {
+      this.initBscGasStation();
+    }
+    return this.bscWallet ? this.bscWallet.address : '';
+  }
+
+  /**
+   * Returns the TRON Gas Station hot wallet address.
+   */
+  public getTronAddress(): string {
+    if (!this.tronAddress) {
+      this.initTronGasStation();
+    }
+    return this.tronAddress;
+  }
+
+  /**
    * Ensures the target BSC temporary address has sufficient BNB for a token transfer.
    * If balance is below threshold, broadcasts a micro-funding transaction and awaits confirmation.
    *
    * @param targetAddress - The temporary deposit address to fund
+   * @param isDualTransfer - Whether the sweep requires 2 transfers (cold wallet + gas station)
    * @returns Funding transaction hash, or null if funding was not needed
    */
-  public async ensureBscGas(targetAddress: string): Promise<string | null> {
+  public async ensureBscGas(targetAddress: string, isDualTransfer: boolean = false): Promise<string | null> {
     const currentBalanceWei = await bscRpcManager.executeWithFailover((provider) =>
       provider.getBalance(targetAddress),
     );
 
-    const minThresholdWei = ethers.parseEther(MIN_BSC_GAS_THRESHOLD);
+    const minThreshold = isDualTransfer ? '0.0006' : MIN_BSC_GAS_THRESHOLD;
+    const fundAmount = isDualTransfer ? '0.0008' : BSC_GAS_FUND_AMOUNT;
+    const minThresholdWei = ethers.parseEther(minThreshold);
 
     if (currentBalanceWei >= minThresholdWei) {
       logger.debug(
@@ -153,14 +176,14 @@ export class GasStation {
       );
     }
 
-    logger.info(`[GasStation] Funding ${BSC_GAS_FUND_AMOUNT} BNB to deposit address ${targetAddress}…`);
+    logger.info(`[GasStation] Funding ${fundAmount} BNB to deposit address ${targetAddress} (dual: ${isDualTransfer})…`);
 
     const activeProvider = bscRpcManager.getActiveProvider();
     const connectedSigner = this.bscWallet.connect(activeProvider);
 
     const tx = await connectedSigner.sendTransaction({
       to: targetAddress,
-      value: ethers.parseEther(BSC_GAS_FUND_AMOUNT),
+      value: ethers.parseEther(fundAmount),
     });
 
     logger.info(`[GasStation] Broadcasted BNB gas funding tx: ${tx.hash}. Awaiting 1 confirmation…`);
@@ -175,9 +198,10 @@ export class GasStation {
    * If balance is below threshold, transfers TRX and awaits broadcast confirmation.
    *
    * @param targetAddress - The temporary deposit address to fund
+   * @param isDualTransfer - Whether the sweep requires 2 transfers (cold wallet + gas station)
    * @returns Funding transaction ID, or null if funding was not needed
    */
-  public async ensureTronGas(targetAddress: string): Promise<string | null> {
+  public async ensureTronGas(targetAddress: string, isDualTransfer: boolean = false): Promise<string | null> {
     if (!this.tronWeb) {
       throw new Error(`[GasStation] TRON Gas Station wallet not configured.`);
     }
@@ -185,16 +209,19 @@ export class GasStation {
     const balanceSun = await this.tronWeb.trx.getBalance(targetAddress);
     const balanceTrx = this.tronWeb.fromSun(balanceSun);
 
-    if (balanceTrx >= MIN_TRON_GAS_THRESHOLD) {
+    const minThreshold = isDualTransfer ? 35 : MIN_TRON_GAS_THRESHOLD;
+    const fundAmount = isDualTransfer ? 38 : TRON_GAS_FUND_AMOUNT;
+
+    if (balanceTrx >= minThreshold) {
       logger.debug(
         `[GasStation] Address ${targetAddress} already has ${balanceTrx} TRX. Skipping gas funding.`,
       );
       return null;
     }
 
-    logger.info(`[GasStation] Funding ${TRON_GAS_FUND_AMOUNT} TRX to deposit address ${targetAddress}…`);
+    logger.info(`[GasStation] Funding ${fundAmount} TRX to deposit address ${targetAddress} (dual: ${isDualTransfer})…`);
 
-    const fundAmountSun = this.tronWeb.toSun(TRON_GAS_FUND_AMOUNT);
+    const fundAmountSun = this.tronWeb.toSun(fundAmount);
     const tx = await this.tronWeb.trx.sendTransaction(targetAddress, fundAmountSun);
 
     if (!tx || !tx.result) {
@@ -204,7 +231,7 @@ export class GasStation {
     const txId = tx.transaction?.txID || tx.txid;
     logger.info(`[GasStation] TRX gas funding broadcasted: ${txId}.`);
 
-    // Await 3 seconds for TRON block confirmation
+    // Await 3.5 seconds for TRON block confirmation
     await new Promise((resolve) => setTimeout(resolve, 3500));
 
     return txId;
