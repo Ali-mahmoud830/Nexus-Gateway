@@ -133,3 +133,15 @@ export interface AdminApiKey {
   createdAt: string;
 }
 
+export interface GatewayConfigData {
+  singletonKey: string;
+  bscFeePercent: number;
+  tronFeePercent: number;
+  minBscFeeUsd: number;
+  minTronFeeUsd: number;
+  autoSweepEnabled: boolean;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+

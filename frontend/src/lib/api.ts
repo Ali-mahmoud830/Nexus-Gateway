@@ -269,3 +269,33 @@ export async function deleteAdminApiKey(token: string, keyId: string): Promise<v
     throw new Error(response.data.error?.message || 'Failed to revoke API key');
   }
 }
+
+/**
+ * Fetches active gateway fee rates and operational thresholds.
+ */
+export async function getAdminGatewayConfig(token: string): Promise<any> {
+  const response = await apiClient.get<ApiResponse<{ config: any }>>(
+    '/admin/config',
+    getAdminHeaders(token),
+  );
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to fetch gateway config');
+  }
+  return response.data.data.config;
+}
+
+/**
+ * Updates active gateway fee rates and operational thresholds.
+ */
+export async function updateAdminGatewayConfig(token: string, configData: any): Promise<any> {
+  const response = await apiClient.put<ApiResponse<{ config: any; message: string }>>(
+    '/admin/config',
+    configData,
+    getAdminHeaders(token),
+  );
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to update gateway config');
+  }
+  return response.data.data;
+}
+

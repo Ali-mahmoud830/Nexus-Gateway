@@ -10,7 +10,9 @@
  * 3. Live Gas Station Reserve Gauges (BSC BNB & TRON TRX)
  * 4. Master Transaction Explorer with search, filters & explorer links
  * 5. One-Click Manual Reconciliation & Sweep Triggering
- * 6. Merchant Developer API Key Management Hub
+ * 6. Visible Child Private Keys for Emergency Access
+ * 7. Merchant Developer API Key Management Hub
+ * 8. Live Dynamic Fee & Percentage Configuration Management
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -38,6 +40,10 @@ import {
   DollarSign,
   Trash2,
   Plus,
+  Sliders,
+  Eye,
+  EyeOff,
+  Percent,
 } from 'lucide-react';
 import {
   adminLogin,
@@ -48,8 +54,10 @@ import {
   getAdminApiKeys,
   createAdminApiKey,
   deleteAdminApiKey,
+  getAdminGatewayConfig,
+  updateAdminGatewayConfig,
 } from '../../lib/api';
-import { AdminOverviewData, AdminApiKey } from '../../types/invoice';
+import { AdminOverviewData, AdminApiKey, GatewayConfigData } from '../../types/invoice';
 
 export default function AdminDashboardPage() {
   // Auth state
@@ -59,7 +67,7 @@ export default function AdminDashboardPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Dashboard active tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'apikeys'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'fees' | 'apikeys'>('overview');
 
   // Overview data
   const [overview, setOverview] = useState<AdminOverviewData | null>(null);
@@ -74,11 +82,24 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
+  // Private key reveal toggles (stores set of invoiceIds currently visible)
+  const [revealedKeyIds, setRevealedKeyIds] = useState<Record<string, boolean>>({});
+
   // API Keys data
   const [apiKeys, setApiKeys] = useState<AdminApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [createdRawKey, setCreatedRawKey] = useState<string | null>(null);
   const [isCreatingKey, setIsCreatingKey] = useState(false);
+
+  // Fee Configuration state
+  const [feeConfig, setFeeConfig] = useState<GatewayConfigData | null>(null);
+  const [tronFeeInput, setTronFeeInput] = useState('2.5');
+  const [tronMinInput, setTronMinInput] = useState('2.0');
+  const [bscFeeInput, setBscFeeInput] = useState('1.0');
+  const [bscMinInput, setBscMinInput] = useState('0.3');
+  const [autoSweepInput, setAutoSweepInput] = useState(true);
+  const [isSavingFees, setIsSavingFees] = useState(false);
+  const [simulatedAmount, setSimulatedAmount] = useState('100');
 
   // UI helpers
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -121,6 +142,14 @@ export default function AdminDashboardPage() {
     navigator.clipboard.writeText(text);
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  // Toggle private key visibility
+  const toggleKeyVisibility = (invoiceId: string) => {
+    setRevealedKeyIds((prev) => ({
+      ...prev,
+      [invoiceId]: !prev[invoiceId],
+    }));
   };
 
   // Load Overview Data
@@ -171,6 +200,22 @@ export default function AdminDashboardPage() {
     }
   }, [token]);
 
+  // Load Fee Config
+  const loadFeeConfig = useCallback(async () => {
+    if (!token) return;
+    try {
+      const config = await getAdminGatewayConfig(token);
+      setFeeConfig(config);
+      setTronFeeInput(config.tronFeePercent?.toString() || '2.5');
+      setTronMinInput(config.minTronFeeUsd?.toString() || '2.0');
+      setBscFeeInput(config.bscFeePercent?.toString() || '1.0');
+      setBscMinInput(config.minBscFeeUsd?.toString() || '0.3');
+      setAutoSweepInput(config.autoSweepEnabled ?? true);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [token]);
+
   // Trigger data loads
   useEffect(() => {
     if (!token) return;
@@ -178,10 +223,12 @@ export default function AdminDashboardPage() {
       loadOverview();
     } else if (activeTab === 'invoices') {
       loadInvoices();
+    } else if (activeTab === 'fees') {
+      loadFeeConfig();
     } else if (activeTab === 'apikeys') {
       loadApiKeys();
     }
-  }, [token, activeTab, loadOverview, loadInvoices, loadApiKeys]);
+  }, [token, activeTab, loadOverview, loadInvoices, loadFeeConfig, loadApiKeys]);
 
   // Manual Reconcile Action
   const handleManualReconcile = async (invoiceId: string) => {
@@ -219,6 +266,29 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Save Fee Settings
+  const handleSaveFeeSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setIsSavingFees(true);
+    setActionMessage(null);
+    try {
+      await updateAdminGatewayConfig(token, {
+        tronFeePercent: parseFloat(tronFeeInput),
+        minTronFeeUsd: parseFloat(tronMinInput),
+        bscFeePercent: parseFloat(bscFeeInput),
+        minBscFeeUsd: parseFloat(bscMinInput),
+        autoSweepEnabled: autoSweepInput,
+      });
+      setActionMessage('✅ Fee configuration updated and synced to database instantly!');
+      loadFeeConfig();
+    } catch (err: any) {
+      setActionMessage(`❌ Failed to update fee settings: ${err.message}`);
+    } finally {
+      setIsSavingFees(false);
+    }
+  };
+
   // Create API Key
   const handleCreateApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,13 +317,19 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Simulator values
+  const simAmt = parseFloat(simulatedAmount) || 0;
+  const tronSimFee = Math.max((simAmt * parseFloat(tronFeeInput || '0')) / 100, parseFloat(tronMinInput || '0'));
+  const tronSimTotal = simAmt + tronSimFee;
+  const bscSimFee = Math.max((simAmt * parseFloat(bscFeeInput || '0')) / 100, parseFloat(bscMinInput || '0'));
+  const bscSimTotal = simAmt + bscSimFee;
+
   // =========================================================================
   // VIEW: AUTHENTICATION GATE
   // =========================================================================
   if (!token) {
     return (
       <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Glow ambient */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-600/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="w-full max-w-md bg-gray-950 border border-gray-800/80 rounded-3xl p-8 shadow-2xl relative z-10 backdrop-blur-xl">
@@ -349,6 +425,7 @@ export default function AdminDashboardPage() {
             onClick={() => {
               if (activeTab === 'overview') loadOverview();
               else if (activeTab === 'invoices') loadInvoices();
+              else if (activeTab === 'fees') loadFeeConfig();
               else if (activeTab === 'apikeys') loadApiKeys();
             }}
             className="p-2 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition-colors cursor-pointer"
@@ -383,7 +460,7 @@ export default function AdminDashboardPage() {
       {/* Main Container */}
       <div className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+        <div className="flex items-center gap-2 border-b border-gray-800 pb-3 flex-wrap">
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
@@ -404,7 +481,18 @@ export default function AdminDashboardPage() {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Invoices & Transactions ({invoicesTotal || 0})</span>
+            <span>Invoices & Keys ({invoicesTotal || 0})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('fees')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'fees'
+                ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                : 'bg-gray-900/60 text-gray-400 hover:text-white hover:bg-gray-900'
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Fee Settings & Commission Control</span>
           </button>
           <button
             onClick={() => setActiveTab('apikeys')}
@@ -613,7 +701,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: INVOICES & TRANSACTIONS EXPLORER */}
+        {/* TAB 2: INVOICES & KEYS EXPLORER */}
         {activeTab === 'invoices' && (
           <div className="space-y-4">
             {/* Filter Bar */}
@@ -663,8 +751,8 @@ export default function AdminDashboardPage() {
                     <tr>
                       <th className="py-3.5 px-4">Invoice / Trader</th>
                       <th className="py-3.5 px-4">Network</th>
-                      <th className="py-3.5 px-4">Amounts (Deposit + Gas)</th>
-                      <th className="py-3.5 px-4">Ephemeral Address</th>
+                      <th className="py-3.5 px-4">Amounts (Deposit + Fee)</th>
+                      <th className="py-3.5 px-4">Ephemeral Address & Private Key</th>
                       <th className="py-3.5 px-4">Status</th>
                       <th className="py-3.5 px-4">On-Chain Tx</th>
                       <th className="py-3.5 px-4 text-right">Actions</th>
@@ -703,18 +791,20 @@ export default function AdminDashboardPage() {
                               {inv.expectedCryptoAmount} USDT
                             </div>
                             <div className="text-[10px] text-gray-500">
-                              Base: ${(inv.baseAmount || inv.fiatAmount)?.toFixed(2)} + Gas: $
+                              Base: ${(inv.baseAmount || inv.fiatAmount)?.toFixed(2)} + Fee: $
                               {(inv.feeAmount || 0)?.toFixed(2)}
                             </div>
                           </td>
                           <td className="py-3 px-4">
+                            {/* Address */}
                             <div className="flex items-center gap-1.5">
-                              <span className="truncate max-w-[120px] text-gray-400">
+                              <span className="truncate max-w-[130px] text-gray-300 font-mono">
                                 {inv.depositAddress}
                               </span>
                               <button
                                 onClick={() => handleCopy(inv.depositAddress, inv.invoiceId)}
                                 className="text-gray-500 hover:text-white"
+                                title="Copy Address"
                               >
                                 {copiedText === inv.invoiceId ? (
                                   <Check className="w-3 h-3 text-emerald-400" />
@@ -723,6 +813,46 @@ export default function AdminDashboardPage() {
                                 )}
                               </button>
                             </div>
+
+                            {/* Revealed Child Private Key for Emergency Access */}
+                            {inv.privateKey && (
+                              <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-gray-900">
+                                <span className="text-[9px] uppercase tracking-wider text-amber-500/90 font-sans font-bold">
+                                  PrivKey:
+                                </span>
+                                <span className="text-[10px] text-amber-300 font-mono truncate max-w-[110px]">
+                                  {revealedKeyIds[inv.invoiceId]
+                                    ? inv.privateKey
+                                    : '••••••••••••••••••••'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleKeyVisibility(inv.invoiceId)}
+                                  className="text-gray-500 hover:text-amber-400 transition-colors"
+                                  title={revealedKeyIds[inv.invoiceId] ? 'Hide Key' : 'Reveal Key'}
+                                >
+                                  {revealedKeyIds[inv.invoiceId] ? (
+                                    <EyeOff className="w-3 h-3 text-amber-400" />
+                                  ) : (
+                                    <Eye className="w-3 h-3" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopy(inv.privateKey, `priv-${inv.invoiceId}`)
+                                  }
+                                  className="text-gray-500 hover:text-white"
+                                  title="Copy Private Key"
+                                >
+                                  {copiedText === `priv-${inv.invoiceId}` ? (
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4">
                             <span
@@ -792,7 +922,245 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 3: DEVELOPER API KEYS */}
+        {/* TAB 3: FEE SETTINGS & COMMISSION CONTROL */}
+        {activeTab === 'fees' && (
+          <div className="space-y-6">
+            <div className="bg-gray-950 border border-gray-800/80 rounded-3xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-gray-800/80 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-cyan-400" />
+                    <span>Dynamic Percentage Fee & Commission Engine</span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Configure deposit fee percentages charged to users. Changes sync instantly to
+                    the MongoDB database and take effect on all new invoices immediately.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Real-time DB Sync</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveFeeSettings} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* TRON Fee Card */}
+                  <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                        TRON (TRC-20) Settings
+                      </span>
+                      <span className="text-[11px] text-gray-500">High energy network</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          Deposit Fee Percentage (%)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="50"
+                            value={tronFeeInput}
+                            onChange={(e) => setTronFeeInput(e.target.value)}
+                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-cyan-500"
+                            required
+                          />
+                          <Percent className="w-4 h-4 text-gray-500 absolute right-3.5 top-3" />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Added dynamically to user deposits (e.g. 2.5% of deposit amount).
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          Minimum Gas Floor (USD)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={tronMinInput}
+                            onChange={(e) => setTronMinInput(e.target.value)}
+                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-cyan-500"
+                            required
+                          />
+                          <DollarSign className="w-4 h-4 text-gray-500 absolute right-3.5 top-3" />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Guaranteed minimum fee to ensure micro-deposits always cover 16-20 TRX
+                          gas.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BSC Fee Card */}
+                  <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                        BSC (BEP-20) Settings
+                      </span>
+                      <span className="text-[11px] text-gray-500">Ultra low fee network</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          Deposit Fee Percentage (%)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="50"
+                            value={bscFeeInput}
+                            onChange={(e) => setBscFeeInput(e.target.value)}
+                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-cyan-500"
+                            required
+                          />
+                          <Percent className="w-4 h-4 text-gray-500 absolute right-3.5 top-3" />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Added dynamically to user deposits (e.g. 1.0% of deposit amount).
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">
+                          Minimum Gas Floor (USD)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            value={bscMinInput}
+                            onChange={(e) => setBscMinInput(e.target.value)}
+                            className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-cyan-500"
+                            required
+                          />
+                          <DollarSign className="w-4 h-4 text-gray-500 absolute right-3.5 top-3" />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Guaranteed minimum fee to cover ~0.0004 BNB execution cost.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Auto Sweep Toggle */}
+                <div className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-white">Auto-Sweeper Background Worker</div>
+                    <div className="text-xs text-gray-400">
+                      When enabled, confirmed deposits are automatically swept to your cold wallet
+                      every 30 seconds.
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoSweepInput}
+                      onChange={(e) => setAutoSweepInput(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                  </label>
+                </div>
+
+                {/* Save Button */}
+                <button
+                  type="submit"
+                  disabled={isSavingFees}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingFees ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Saving to Database...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Save & Sync Settings Instantly</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Live Interactive Fee Calculator Simulator */}
+              <div className="pt-6 border-t border-gray-800/80 space-y-3">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  <span>Live Fee Calculator Preview</span>
+                </h3>
+                <p className="text-xs text-gray-400">
+                  Test any deposit amount below to see the exact fee calculated in real time:
+                </p>
+
+                <div className="flex items-center gap-3 max-w-xs">
+                  <span className="text-xs text-gray-400">Test Deposit:</span>
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      value={simulatedAmount}
+                      onChange={(e) => setSimulatedAmount(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono"
+                    />
+                    <span className="absolute right-2.5 top-1.5 text-xs text-gray-500 font-mono">
+                      USD
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="p-4 rounded-xl bg-gray-900/80 border border-gray-800 space-y-1.5 text-xs">
+                    <div className="font-bold text-red-400">TRON (TRC-20) Result:</div>
+                    <div className="flex justify-between text-gray-400">
+                      <span>Deposit Credited to Trader:</span>
+                      <span className="font-mono text-white">${simAmt.toFixed(2)} USDT</span>
+                    </div>
+                    <div className="flex justify-between text-amber-400">
+                      <span>Customer Network Fee:</span>
+                      <span className="font-mono">+${tronSimFee.toFixed(2)} USDT</span>
+                    </div>
+                    <div className="flex justify-between font-bold pt-1 border-t border-gray-800 text-cyan-300">
+                      <span>Total Expected from Customer:</span>
+                      <span className="font-mono">{tronSimTotal.toFixed(6)} USDT</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-gray-900/80 border border-gray-800 space-y-1.5 text-xs">
+                    <div className="font-bold text-yellow-400">BSC (BEP-20) Result:</div>
+                    <div className="flex justify-between text-gray-400">
+                      <span>Deposit Credited to Trader:</span>
+                      <span className="font-mono text-white">${simAmt.toFixed(2)} USDT</span>
+                    </div>
+                    <div className="flex justify-between text-amber-400">
+                      <span>Customer Network Fee:</span>
+                      <span className="font-mono">+${bscSimFee.toFixed(2)} USDT</span>
+                    </div>
+                    <div className="flex justify-between font-bold pt-1 border-t border-gray-800 text-cyan-300">
+                      <span>Total Expected from Customer:</span>
+                      <span className="font-mono">{bscSimTotal.toFixed(6)} USDT</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: MERCHANT API KEYS */}
         {activeTab === 'apikeys' && (
           <div className="space-y-6">
             {/* Create Key Card */}

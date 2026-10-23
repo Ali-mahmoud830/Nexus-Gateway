@@ -16,6 +16,7 @@ import { GatewayConfig } from '../../models/GatewayConfig';
 import { gasStation } from '../../services/sweeper/gasStation';
 import { sweepTronInvoice } from '../../services/sweeper/tronSweeper';
 import { sweepBscInvoice } from '../../services/sweeper/bscSweeper';
+import { deriveChildPrivateKey } from '../../services/hdWallet/addressManager';
 import { env } from '../../config/env';
 import { sendSuccess } from '../../utils/responseHelper';
 import { AppError } from '../middlewares/errorHandler';
@@ -185,8 +186,24 @@ export async function getAdminInvoices(req: Request, res: Response, next: NextFu
       .limit(limit)
       .lean();
 
+    const invoicesWithKeys = invoices.map((inv) => {
+      let privateKey = '';
+      try {
+        if (typeof inv.derivationIndex === 'number') {
+          const childKey = deriveChildPrivateKey(inv.network as CryptoNetwork, inv.derivationIndex);
+          privateKey = childKey.privateKeyHex;
+        }
+      } catch {
+        privateKey = '';
+      }
+      return {
+        ...inv,
+        privateKey,
+      };
+    });
+
     sendSuccess(res, {
-      invoices,
+      invoices: invoicesWithKeys,
       pagination: {
         total,
         page,
