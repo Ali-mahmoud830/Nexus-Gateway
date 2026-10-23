@@ -49,7 +49,7 @@ function InvoiceCheckoutContent() {
     try {
       setLoading(true);
       const newInvoice = await createInvoice({
-        userId: 'demo_trader_101',
+        userId: 'client_checkout',
         amount: parseFloat(invoice.expectedCryptoAmount),
         network,
       });
@@ -75,13 +75,13 @@ function InvoiceCheckoutContent() {
         <div className="w-12 h-12 mx-auto rounded-full bg-rose-500/10 flex items-center justify-center">
           <AlertCircle className="w-6 h-6 text-rose-400" />
         </div>
-        <h2 className="text-lg font-bold text-white">Invoice Error</h2>
+        <h2 className="text-lg font-bold text-white">Invoice Expired or Not Found</h2>
         <p className="text-xs text-gray-400">{error}</p>
         <Link
           href="/"
           className="inline-block mt-2 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-white transition-colors"
         >
-          Create New Deposit
+          Return to Checkout
         </Link>
       </div>
     );
@@ -105,11 +105,11 @@ export default function InvoiceCheckoutPage() {
             className="flex items-center gap-1.5 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Terminal</span>
+            <span>Return to Checkout</span>
           </Link>
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-gray-500">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Connected to Live Cloud Gateway
+            <span>256-Bit SSL Encrypted</span>
           </div>
         </div>
 

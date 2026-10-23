@@ -234,15 +234,15 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
             {showFeeDetails && (
               <div className="mt-2.5 pt-2 border-t border-gray-800/80 space-y-1.5 text-[11px] text-gray-400 animate-in fade-in duration-200">
                 <div className="flex justify-between">
-                  <span>Trading Deposit (Credited to User)</span>
+                  <span>Invoice Amount</span>
                   <span className="font-mono text-gray-200">${baseAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{feeInfo.protocolBadge} Blockchain Gas & Routing</span>
+                  <span>{feeInfo.protocolBadge} Network Fee</span>
                   <span className="font-mono text-amber-400">+${feeAmount.toFixed(2)} USDT</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-gray-800 font-semibold text-gray-200">
-                  <span>Total Amount Expected</span>
+                  <span>Total Due</span>
                   <span className="font-mono text-cyan-300">
                     {activeInvoice.expectedCryptoAmount} USDT
                   </span>
@@ -261,10 +261,10 @@ export const CheckoutCard: React.FC<CheckoutCardProps> = ({
         </div>
       )}
 
-      {/* Privacy Guarantee Footer */}
+      {/* Security Seal Footer */}
       <div className="mt-5 pt-4 border-t border-gray-800/80 flex items-center justify-center gap-2 text-[11px] text-gray-500">
         <Shield className="w-3.5 h-3.5 text-emerald-500/80" />
-        <span>Decoupled HD Ephemeral Address &bull; Auto-Swept to Cold Storage</span>
+        <span>Secured by Non-Custodial Smart Contract Rails</span>
       </div>
     </div>
   );
