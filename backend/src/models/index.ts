@@ -9,5 +9,6 @@ export * from './Counter';
 export * from './BlockCursor';
 export * from './ApiKey';
 export * from './GatewayConfig';
+export * from './SupportConversation';
 
 

@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 };
 
 import { LanguageProvider } from '@/context/LanguageContext';
+import { SupportWidget } from '@/components/SupportWidget';
 
 export default function RootLayout({
   children,
@@ -28,7 +29,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
       <body className="min-h-screen bg-[#090d16] text-gray-100 antialiased">
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          {children}
+          <SupportWidget />
+        </LanguageProvider>
       </body>
     </html>
   );

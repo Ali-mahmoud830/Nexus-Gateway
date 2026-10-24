@@ -123,6 +123,21 @@ export interface Translations {
   faq2Answer: string;
   faq3Question: string;
   faq3Answer: string;
+
+  // Live Support Desk
+  liveSupport: string;
+  supportTitle: string;
+  supportSubtitle: string;
+  typeYourMessage: string;
+  sendMessage: string;
+  supportAgent: string;
+  you: string;
+  supportOnline: string;
+  quickQuestions: string;
+  q1InvoiceStatus: string;
+  q2DepositDelay: string;
+  q3NetworkHelp: string;
+  supportHoursNotice: string;
 }
 
 const translations: Record<Language, Translations> = {
@@ -208,6 +223,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB Smart Chain (BEP-20) transfers confirm within 3 to 15 seconds. TRON (TRC-20) transfers confirm in approximately 60 seconds.',
     faq3Question: 'Which wallets and exchanges can I pay from?',
     faq3Answer: 'You can transfer from any Web3 wallet (MetaMask, Trust Wallet, TronLink, Ledger) or directly from any exchange (Binance, OKX, Bybit, KuCoin) by scanning the QR code or copying the address.',
+
+    // Live Support Desk
+    liveSupport: 'Live Support',
+    supportTitle: 'Nexus Live Concierge',
+    supportSubtitle: 'Direct instant assistance for deposits, verification & routing.',
+    typeYourMessage: 'Type your message...',
+    sendMessage: 'Send',
+    supportAgent: 'Support Desk',
+    you: 'You',
+    supportOnline: 'Online • Real-time',
+    quickQuestions: 'Quick Questions',
+    q1InvoiceStatus: 'How do I check my invoice status?',
+    q2DepositDelay: 'My deposit was sent but not confirmed yet',
+    q3NetworkHelp: 'Which network has the lowest fee?',
+    supportHoursNotice: '24/7 dedicated payment specialists available.',
   },
 
   // 2. Arabic
@@ -292,6 +322,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'تستغرق التحويلات عبر شبكة BNB Smart Chain (BEP-20) من 3 إلى 15 ثانية فقط. بينما تستغرق التحويلات عبر شبكة TRON (TRC-20) حوالي 60 ثانية للتسوية النهائية.',
     faq3Question: 'ما هي المحافظ والمنصات التي يمكنني الدفع منها؟',
     faq3Answer: 'يمكنك التحويل من أي محفظة شخصية (مثل MetaMask أو Trust Wallet أو TronLink أو Ledger) أو مباشرة من أي منصة تداول عالمية (مثل Binance أو OKX أو Bybit أو KuCoin) بمسح رمز QR أو نسخ العنوان.',
+
+    // Live Support Desk
+    liveSupport: 'الدعم المباشر',
+    supportTitle: 'خدمة العملاء المباشرة',
+    supportSubtitle: 'مساعدة فورية ومباشرة لعمليات الإيداع والتحقق والشبكات.',
+    typeYourMessage: 'اكتب رسالتك هنا...',
+    sendMessage: 'إرسال',
+    supportAgent: 'فريق الدعم',
+    you: 'أنت',
+    supportOnline: 'متصل الآن • استجابة فورية',
+    quickQuestions: 'أسئلة سريعة',
+    q1InvoiceStatus: 'كيف أتحقق من حالة الفاتورة الخاصة بي؟',
+    q2DepositDelay: 'أرسلت المبلغ ولكن لم يتم تأكيد الإيداع بعد',
+    q3NetworkHelp: 'ما هي الشبكة الأقل في رسوم التحويل؟',
+    supportHoursNotice: 'فريق الدعم الفني متاح 24/7 على مدار الساعة.',
   },
 
   // 3. Urdu
@@ -376,6 +421,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB Smart Chain (BEP-20) پر 3 سے 15 سیکنڈ لگتے ہیں، جبکہ TRON (TRC-20) پر تقریباً 60 سیکنڈ لگتے ہیں۔',
     faq3Question: 'میں کن والٹس یا ایکسچینجز سے ادائیگی کر سکتا ہوں؟',
     faq3Answer: 'آپ کسی بھی پرسنل والٹ (Trust Wallet, MetaMask, TronLink) یا کسی بھی ایکسچینج (Binance, Bybit, OKX) سے براہ راست بھیج سکتے ہیں۔',
+
+    // Live Support Desk
+    liveSupport: 'براہ راست مدد',
+    supportTitle: 'لائیو کسٹمر سپورٹ',
+    supportSubtitle: 'ڈپازٹ اور فنڈز کی تصدیق کے لیے فوری اور براہ راست مدد۔',
+    typeYourMessage: 'اپنا پیغام یہاں لکھیں...',
+    sendMessage: 'بھیجیں',
+    supportAgent: 'سپورٹ ٹیم',
+    you: 'آپ',
+    supportOnline: 'آن لائن • فوری جواب',
+    quickQuestions: 'فوری سوالات',
+    q1InvoiceStatus: 'میں اپنی انوائس کی حیثیت کیسے چیک کروں؟',
+    q2DepositDelay: 'رقم بھیج دی گئی ہے لیکن ابھی تک تصدیق نہیں ہوئی',
+    q3NetworkHelp: 'کس نیٹ ورک پر فیس سب سے کم ہے؟',
+    supportHoursNotice: '24/7 کسٹمر سپورٹ آپ کی رہنمائی کے لیے دستیاب ہے۔',
   },
 
   // 4. Russian
@@ -460,6 +520,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'В сети BNB Smart Chain (BEP-20) подтверждение занимает от 3 до 15 секунд. В сети TRON (TRC-20) — около 60 секунд.',
     faq3Question: 'С каких кошельков и бирж можно платить?',
     faq3Answer: 'Вы можете отправить перевод с любого Web3-кошелька (MetaMask, Trust Wallet, TronLink) или с любой биржи (Binance, OKX, Bybit, KuCoin).',
+
+    // Live Support Desk
+    liveSupport: 'Онлайн поддержка',
+    supportTitle: 'Служба онлайн-поддержки',
+    supportSubtitle: 'Мгновенная помощь по депозитам, транзакциям и сетям.',
+    typeYourMessage: 'Введите ваше сообщение...',
+    sendMessage: 'Отправить',
+    supportAgent: 'Поддержка',
+    you: 'Вы',
+    supportOnline: 'В сети • Мгновенный ответ',
+    quickQuestions: 'Быстрые вопросы',
+    q1InvoiceStatus: 'Как проверить статус моего счета?',
+    q2DepositDelay: 'Средства отправлены, но еще не подтверждены',
+    q3NetworkHelp: 'В какой сети самая низкая комиссия?',
+    supportHoursNotice: 'Круглосуточная поддержка 24/7 к вашим услугам.',
   },
 
   // 5. Turkish
@@ -544,6 +619,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB Smart Chain (BEP-20) 3-15 saniyede, TRON (TRC-20) ise yaklaşık 60 saniyede onaylanır.',
     faq3Question: 'Hangi cüzdan ve borsalardan ödeme yapabilirim?',
     faq3Answer: 'Tüm Web3 cüzdanlarından (MetaMask, Trust Wallet, TronLink) veya borsalardan (Binance, OKX, Bybit) doğrudan transfer yapabilirsiniz.',
+
+    // Live Support Desk
+    liveSupport: 'Canlı Destek',
+    supportTitle: 'Canlı Destek Hattı',
+    supportSubtitle: 'Yatırımlarınız ve işlemleriniz için anında kesintisiz yardım.',
+    typeYourMessage: 'Mesajınızı yazın...',
+    sendMessage: 'Gönder',
+    supportAgent: 'Destek Ekibi',
+    you: 'Siz',
+    supportOnline: 'Çevrimiçi • Anında Yanıt',
+    quickQuestions: 'Hızlı Sorular',
+    q1InvoiceStatus: 'Fatura durumumu nasıl kontrol edebilirim?',
+    q2DepositDelay: 'Ödeme gönderildi fakat henüz onaylanmadı',
+    q3NetworkHelp: 'Hangi ağda transfer ücreti daha düşük?',
+    supportHoursNotice: '7/24 uzman destek ekibimiz hizmetinizde.',
   },
 
   // 6. Spanish
@@ -628,6 +718,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB Smart Chain (BEP-20) se confirma en 3 a 15 segundos. TRON (TRC-20) se liquida en aproximadamente 60 segundos.',
     faq3Question: '¿Desde qué billeteras o exchanges puedo pagar?',
     faq3Answer: 'Puede transferir desde cualquier billetera Web3 (MetaMask, Trust Wallet, TronLink) o directamente desde exchanges (Binance, OKX, Bybit).',
+
+    // Live Support Desk
+    liveSupport: 'Soporte en Vivo',
+    supportTitle: 'Centro de Soporte en Vivo',
+    supportSubtitle: 'Asistencia inmediata para depósitos, redes y verificaciones.',
+    typeYourMessage: 'Escribe tu mensaje...',
+    sendMessage: 'Enviar',
+    supportAgent: 'Soporte Nexus',
+    you: 'Tú',
+    supportOnline: 'En línea • Respuesta inmediata',
+    quickQuestions: 'Preguntas Rápidas',
+    q1InvoiceStatus: '¿Cómo verifico el estado de mi factura?',
+    q2DepositDelay: 'Envié el depósito pero aún no está confirmado',
+    q3NetworkHelp: '¿Qué red tiene la tarifa más económica?',
+    supportHoursNotice: 'Especialistas de pago disponibles las 24 horas del día, los 7 días de la semana.',
   },
 
   // 7. French
@@ -712,6 +817,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB Smart Chain (BEP-20) confirme en 3 à 15 secondes. TRON (TRC-20) se règle en environ 60 secondes.',
     faq3Question: 'Quels portefeuilles et plateformes sont compatibles ?',
     faq3Answer: 'Vous pouvez payer depuis n’importe quel portefeuille Web3 (MetaMask, Trust Wallet, TronLink) ou plateforme (Binance, OKX, Bybit).',
+
+    // Live Support Desk
+    liveSupport: 'Support en Direct',
+    supportTitle: 'Concierge Support en Direct',
+    supportSubtitle: 'Assistance instantanée pour vos dépôts et vérifications réseau.',
+    typeYourMessage: 'Écrivez votre message...',
+    sendMessage: 'Envoyer',
+    supportAgent: 'Équipe Support',
+    you: 'Vous',
+    supportOnline: 'En ligne • Réponse immédiate',
+    quickQuestions: 'Questions Rapides',
+    q1InvoiceStatus: 'Comment vérifier l\'état de ma facture ?',
+    q2DepositDelay: 'J\'ai envoyé le montant mais ce n\'est pas encore confirmé',
+    q3NetworkHelp: 'Quel réseau a les frais les plus bas ?',
+    supportHoursNotice: 'Assistance dédiée aux paiements disponible 24h/24 et 7j/7.',
   },
 
   // 8. Chinese (Simplified)
@@ -796,6 +916,21 @@ const translations: Record<Language, Translations> = {
     faq2Answer: 'BNB 智能链 (BEP-20) 通常在 3 至 15 秒内完成确认；TRON (TRC-20) 约需 60 秒完成不可逆清算。',
     faq3Question: '支持从哪些钱包或交易所进行支付？',
     faq3Answer: '支持任何标准 Web3 钱包（MetaMask、Trust Wallet、TronLink）以及任何主流交易所（Binance、OKX、Bybit、KuCoin）。',
+
+    // Live Support Desk
+    liveSupport: '实时客服',
+    supportTitle: '在线实时支持中心',
+    supportSubtitle: '为您提供充值入账、网络确认与状态查询的即时协助。',
+    typeYourMessage: '请输入您的留言...',
+    sendMessage: '发送',
+    supportAgent: '客服团队',
+    you: '您',
+    supportOnline: '在线 • 极速响应',
+    quickQuestions: '常见疑问',
+    q1InvoiceStatus: '如何查询我的账单确认状态？',
+    q2DepositDelay: '已转账但尚未显示已入账',
+    q3NetworkHelp: '哪个网络的矿工手续费最低？',
+    supportHoursNotice: '全天候 24/7 专属客服为您提供专业支持。',
   },
 };
 

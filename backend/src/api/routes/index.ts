@@ -12,6 +12,7 @@ import healthRouter from './health';
 import invoiceRouter from './invoiceRoutes';
 import adminRouter from './adminRoutes';
 import configRouter from './configRoutes';
+import supportRouter from './supportRoutes';
 
 const router = Router();
 
@@ -23,6 +24,9 @@ router.use('/config', configRouter);
 
 // Invoice management & status queries
 router.use('/invoices', invoiceRouter);
+
+// Customer Live Support Desk
+router.use('/support', supportRouter);
 
 // Secure Admin Command Center
 router.use('/admin', adminRouter);

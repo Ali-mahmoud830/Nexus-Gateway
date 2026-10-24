@@ -344,4 +344,172 @@ export async function getPublicConfig(): Promise<PublicConfigData> {
   return response.data.data;
 }
 
+// ==========================================
+// Live Customer Support API Suite
+// ==========================================
+
+export interface SupportMessage {
+  messageId: string;
+  sender: 'user' | 'admin';
+  senderName: string;
+  text: string;
+  createdAt: string;
+  isRead: boolean;
+}
+
+export interface SupportConversation {
+  conversationId: string;
+  sessionId: string;
+  userName?: string;
+  userEmail?: string;
+  invoiceId?: string;
+  status: 'OPEN' | 'RESOLVED';
+  unreadCountAdmin: number;
+  unreadCountUser: number;
+  lastMessageText: string;
+  lastMessageSender: 'user' | 'admin';
+  lastMessageAt: string;
+  messages?: SupportMessage[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SendSupportMessagePayload {
+  sessionId: string;
+  text: string;
+  userName?: string;
+  userEmail?: string;
+  invoiceId?: string;
+}
+
+export async function sendUserSupportMessage(payload: SendSupportMessagePayload): Promise<{
+  conversationId: string;
+  sessionId: string;
+  status: 'OPEN' | 'RESOLVED';
+  sentMessage: SupportMessage;
+  messages: SupportMessage[];
+}> {
+  const response = await apiClient.post<ApiResponse<{
+    conversationId: string;
+    sessionId: string;
+    status: 'OPEN' | 'RESOLVED';
+    sentMessage: SupportMessage;
+    messages: SupportMessage[];
+  }>>('/support/messages', payload);
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to send message');
+  }
+  return response.data.data;
+}
+
+export async function getUserSupportConversation(sessionId: string): Promise<{
+  conversation: SupportConversation | null;
+  messages: SupportMessage[];
+  unreadCountUser: number;
+}> {
+  const response = await apiClient.get<ApiResponse<{
+    conversation: SupportConversation | null;
+    messages: SupportMessage[];
+    unreadCountUser: number;
+  }>>(`/support/conversations/${encodeURIComponent(sessionId)}`);
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to fetch conversation');
+  }
+  return response.data.data;
+}
+
+export async function getAdminSupportConversations(
+  token: string,
+  params?: { status?: string; search?: string; page?: number; limit?: number },
+): Promise<{
+  conversations: SupportConversation[];
+  total: number;
+  totalUnreadAdmin: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}> {
+  const response = await apiClient.get<ApiResponse<{
+    conversations: SupportConversation[];
+    total: number;
+    totalUnreadAdmin: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>>('/support/admin/conversations', {
+    ...getAdminHeaders(token),
+    params,
+  });
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to fetch support conversations');
+  }
+  return response.data.data;
+}
+
+export async function getAdminSupportConversationDetails(
+  token: string,
+  conversationId: string,
+): Promise<{
+  conversation: SupportConversation & { messages: SupportMessage[] };
+  invoice?: any;
+}> {
+  const response = await apiClient.get<ApiResponse<{
+    conversation: SupportConversation & { messages: SupportMessage[] };
+    invoice?: any;
+  }>>(`/support/admin/conversations/${encodeURIComponent(conversationId)}`, getAdminHeaders(token));
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to fetch conversation details');
+  }
+  return response.data.data;
+}
+
+export async function postAdminSupportReply(
+  token: string,
+  conversationId: string,
+  text: string,
+  adminName?: string,
+): Promise<{
+  sentMessage: SupportMessage;
+  conversation: SupportConversation;
+}> {
+  const response = await apiClient.post<ApiResponse<{
+    sentMessage: SupportMessage;
+    conversation: SupportConversation;
+  }>>(
+    `/support/admin/conversations/${encodeURIComponent(conversationId)}/reply`,
+    { text, adminName },
+    getAdminHeaders(token),
+  );
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to post admin reply');
+  }
+  return response.data.data;
+}
+
+export async function updateAdminSupportStatus(
+  token: string,
+  conversationId: string,
+  status: 'OPEN' | 'RESOLVED',
+): Promise<{
+  conversation: SupportConversation;
+}> {
+  const response = await apiClient.patch<ApiResponse<{
+    conversation: SupportConversation;
+  }>>(
+    `/support/admin/conversations/${encodeURIComponent(conversationId)}/status`,
+    { status },
+    getAdminHeaders(token),
+  );
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error?.message || 'Failed to update conversation status');
+  }
+  return response.data.data;
+}
+
 

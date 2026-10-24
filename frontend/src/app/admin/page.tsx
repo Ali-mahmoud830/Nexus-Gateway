@@ -47,6 +47,11 @@ import {
   Wallet,
   Smartphone,
   Coins,
+  Headphones,
+  MessageSquare,
+  MessageCircle,
+  Inbox,
+  CheckCheck,
 } from 'lucide-react';
 import {
   adminLogin,
@@ -59,6 +64,12 @@ import {
   deleteAdminApiKey,
   getAdminGatewayConfig,
   updateAdminGatewayConfig,
+  getAdminSupportConversations,
+  getAdminSupportConversationDetails,
+  postAdminSupportReply,
+  updateAdminSupportStatus,
+  SupportConversation,
+  SupportMessage,
 } from '../../lib/api';
 import {
   AdminOverviewData,
@@ -75,7 +86,22 @@ export default function AdminDashboardPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Dashboard active tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'fees' | 'wallets' | 'apikeys'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'support' | 'fees' | 'wallets' | 'apikeys'>('overview');
+
+  // Support Desk state
+  const [supportConversations, setSupportConversations] = useState<SupportConversation[]>([]);
+  const [totalUnreadSupport, setTotalUnreadSupport] = useState<number>(0);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [activeConversationDetails, setActiveConversationDetails] = useState<{
+    conversation: SupportConversation & { messages: SupportMessage[] };
+    invoice?: any;
+  } | null>(null);
+  const [supportSearch, setSupportSearch] = useState('');
+  const [supportStatusFilter, setSupportStatusFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
+  const [adminReplyText, setAdminReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isLoadingSupport, setIsLoadingSupport] = useState(false);
+  const [isUpdatingSupportStatus, setIsUpdatingSupportStatus] = useState(false);
 
   // Overview data
   const [overview, setOverview] = useState<AdminOverviewData | null>(null);
@@ -276,6 +302,88 @@ export default function AdminDashboardPage() {
     }
   }, [token, handleAuthError]);
 
+  // Load Support Conversations
+  const loadSupportConversations = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setIsLoadingSupport(true);
+      try {
+        const data = await getAdminSupportConversations(token, {
+          status: supportStatusFilter === 'ALL' ? undefined : supportStatusFilter,
+          search: supportSearch || undefined,
+        });
+        setSupportConversations(data.conversations || []);
+        setTotalUnreadSupport(data.totalUnreadAdmin || 0);
+
+        // If an active conversation is selected, silently refresh thread
+        if (selectedConversationId) {
+          const details = await getAdminSupportConversationDetails(token, selectedConversationId);
+          setActiveConversationDetails(details);
+        }
+      } catch (err) {
+        handleAuthError(err);
+      } finally {
+        if (!silent) setIsLoadingSupport(false);
+      }
+    },
+    [token, supportStatusFilter, supportSearch, selectedConversationId, handleAuthError],
+  );
+
+  // Select conversation & load full thread
+  const handleSelectConversation = async (conversationId: string) => {
+    if (!token) return;
+    setSelectedConversationId(conversationId);
+    try {
+      const details = await getAdminSupportConversationDetails(token, conversationId);
+      setActiveConversationDetails(details);
+      // Reset unread count locally in sidebar for instant visual feedback
+      setSupportConversations((prev) =>
+        prev.map((c) =>
+          c.conversationId === conversationId ? { ...c, unreadCountAdmin: 0 } : c,
+        ),
+      );
+    } catch (err: any) {
+      setActionMessage(`❌ Failed to load thread: ${err.message}`);
+    }
+  };
+
+  // Post Admin Reply
+  const handleSendAdminReply = async (textOverride?: string) => {
+    const text = (textOverride || adminReplyText).trim();
+    if (!text || !token || !selectedConversationId || isSendingReply) return;
+
+    setIsSendingReply(true);
+    if (!textOverride) setAdminReplyText('');
+
+    try {
+      await postAdminSupportReply(token, selectedConversationId, text, 'Support Admin');
+      const details = await getAdminSupportConversationDetails(token, selectedConversationId);
+      setActiveConversationDetails(details);
+      loadSupportConversations(true);
+    } catch (err: any) {
+      setActionMessage(`❌ Failed to send reply: ${err.message}`);
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  // Toggle Support Status (OPEN / RESOLVED)
+  const handleToggleSupportStatus = async (newStatus: 'OPEN' | 'RESOLVED') => {
+    if (!token || !selectedConversationId || isUpdatingSupportStatus) return;
+    setIsUpdatingSupportStatus(true);
+    try {
+      await updateAdminSupportStatus(token, selectedConversationId, newStatus);
+      const details = await getAdminSupportConversationDetails(token, selectedConversationId);
+      setActiveConversationDetails(details);
+      loadSupportConversations(true);
+      setActionMessage(`✅ Conversation marked ${newStatus}`);
+    } catch (err: any) {
+      setActionMessage(`❌ Failed to update status: ${err.message}`);
+    } finally {
+      setIsUpdatingSupportStatus(false);
+    }
+  };
+
   // Trigger data loads
   useEffect(() => {
     if (!token) return;
@@ -283,12 +391,26 @@ export default function AdminDashboardPage() {
       loadOverview();
     } else if (activeTab === 'invoices') {
       loadInvoices();
+    } else if (activeTab === 'support') {
+      loadSupportConversations();
     } else if (activeTab === 'fees' || activeTab === 'wallets') {
       loadFeeConfig();
     } else if (activeTab === 'apikeys') {
       loadApiKeys();
     }
-  }, [token, activeTab, loadOverview, loadInvoices, loadFeeConfig, loadApiKeys]);
+  }, [token, activeTab, loadOverview, loadInvoices, loadSupportConversations, loadFeeConfig, loadApiKeys]);
+
+  // Real-time polling for Support Desk (2.5s when in Support tab, 10s otherwise)
+  useEffect(() => {
+    if (!token) return;
+    loadSupportConversations(true);
+
+    const interval = setInterval(() => {
+      loadSupportConversations(true);
+    }, activeTab === 'support' ? 2500 : 10000);
+
+    return () => clearInterval(interval);
+  }, [token, activeTab, loadSupportConversations]);
 
   // Manual Reconcile Action
   const handleManualReconcile = async (invoiceId: string) => {
@@ -653,6 +775,22 @@ export default function AdminDashboardPage() {
           >
             <Layers className="w-4 h-4" />
             <span>Invoices & Keys ({invoicesTotal || 0})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('support')}
+            className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              activeTab === 'support'
+                ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                : 'bg-gray-900/60 text-gray-400 hover:text-white hover:bg-gray-900'
+            }`}
+          >
+            <Headphones className="w-4 h-4" />
+            <span>Live Support Desk</span>
+            {totalUnreadSupport > 0 && (
+              <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-extrabold text-white bg-rose-500 rounded-full animate-pulse shadow-md">
+                {totalUnreadSupport}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('fees')}
@@ -1156,6 +1294,330 @@ export default function AdminDashboardPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2.5: LIVE SUPPORT DESK */}
+        {activeTab === 'support' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Headphones className="w-5 h-5 text-cyan-400" />
+                  <span>Real-Time Concierge Support Desk</span>
+                  {totalUnreadSupport > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      {totalUnreadSupport} Unread Pending
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Direct live communication with customers making deposits. Messages update automatically in real-time.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Live Stream Active (2.5s)</span>
+                </span>
+                <button
+                  onClick={() => loadSupportConversations()}
+                  className="p-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-800 transition-colors cursor-pointer"
+                  title="Refresh Support Threads"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSupport ? 'animate-spin text-cyan-400' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Split Screen Desk */}
+            <div className="h-[720px] flex flex-col lg:flex-row gap-4 bg-gray-950 border border-gray-800/80 rounded-3xl p-4 shadow-2xl overflow-hidden">
+              {/* Left Column: Conversations List */}
+              <div className="w-full lg:w-[360px] flex flex-col bg-gray-900/40 border border-gray-800/60 rounded-2xl overflow-hidden">
+                {/* Search & Filter Header */}
+                <div className="p-3 border-b border-gray-800/80 space-y-2.5 bg-gray-900/60">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search customer, invoice, text..."
+                      value={supportSearch}
+                      onChange={(e) => setSupportSearch(e.target.value)}
+                      className="w-full bg-[#080d16] border border-gray-800 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-[#080d16] p-1 rounded-xl border border-gray-800">
+                    {(['ALL', 'OPEN', 'RESOLVED'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setSupportStatusFilter(st)}
+                        className={`flex-1 py-1 text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${
+                          supportStatusFilter === st
+                            ? 'bg-cyan-500 text-black shadow-sm'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conversation Items */}
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-800/60 scrollbar-thin scrollbar-thumb-gray-800">
+                  {supportConversations.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full p-6 text-center text-gray-500">
+                      <Inbox className="w-8 h-8 mb-2 opacity-50" />
+                      <p className="text-xs font-semibold">No support tickets found</p>
+                      <p className="text-[11px] mt-1 text-gray-600">Customer inquiries from the checkout portal will appear here instantly.</p>
+                    </div>
+                  ) : (
+                    supportConversations.map((conv) => {
+                      const isSelected = selectedConversationId === conv.conversationId;
+                      const hasUnread = (conv.unreadCountAdmin || 0) > 0;
+                      return (
+                        <button
+                          key={conv.conversationId}
+                          onClick={() => handleSelectConversation(conv.conversationId)}
+                          className={`w-full text-left p-3.5 transition-all cursor-pointer relative ${
+                            isSelected
+                              ? 'bg-cyan-950/40 border-l-4 border-cyan-400'
+                              : 'hover:bg-gray-800/40'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-white truncate max-w-[170px]">
+                              {conv.userName || 'Customer'}
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-mono">
+                              {conv.lastMessageAt
+                                ? new Date(conv.lastMessageAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : ''}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            {conv.invoiceId && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-800/50 text-cyan-300">
+                                #{conv.invoiceId.substring(0, 10)}...
+                              </span>
+                            )}
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                conv.status === 'OPEN'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-gray-800 text-gray-400'
+                              }`}
+                            >
+                              {conv.status}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] text-gray-400 truncate max-w-[240px]">
+                              {conv.lastMessageText || 'No messages yet'}
+                            </p>
+                            {hasUnread && (
+                              <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-rose-500 rounded-full animate-bounce">
+                                {conv.unreadCountAdmin}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Active Conversation & Context */}
+              <div className="flex-1 flex flex-col bg-gray-900/60 border border-gray-800/60 rounded-2xl overflow-hidden">
+                {!selectedConversationId || !activeConversationDetails ? (
+                  <div className="flex flex-col items-center justify-center h-full p-8 text-center text-gray-500">
+                    <Headphones className="w-12 h-12 mb-3 text-cyan-500/40" />
+                    <h3 className="text-sm font-bold text-gray-300">Select a Customer Inquiry</h3>
+                    <p className="text-xs text-gray-500 max-w-sm mt-1">
+                      Choose any conversation from the sidebar to inspect linked blockchain invoice telemetry and reply to the customer in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Active Thread Header */}
+                    <div className="flex items-center justify-between p-3.5 bg-gray-900/90 border-b border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                          {(activeConversationDetails.conversation.userName || 'C')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white">
+                              {activeConversationDetails.conversation.userName || 'Customer'}
+                            </span>
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                activeConversationDetails.conversation.status === 'OPEN'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-gray-800 text-gray-400'
+                              }`}
+                            >
+                              {activeConversationDetails.conversation.status}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            Session: {activeConversationDetails.conversation.sessionId}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {activeConversationDetails.conversation.status === 'OPEN' ? (
+                          <button
+                            disabled={isUpdatingSupportStatus}
+                            onClick={() => handleToggleSupportStatus('RESOLVED')}
+                            className="px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-xs font-semibold border border-gray-700 transition-colors cursor-pointer"
+                          >
+                            Mark as Resolved
+                          </button>
+                        ) : (
+                          <button
+                            disabled={isUpdatingSupportStatus}
+                            onClick={() => handleToggleSupportStatus('OPEN')}
+                            className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-semibold border border-cyan-500/30 transition-colors cursor-pointer"
+                          >
+                            Reopen Thread
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Linked Invoice Telemetry (If invoice exists) */}
+                    {activeConversationDetails.invoice && (
+                      <div className="px-4 py-2.5 bg-cyan-950/30 border-b border-cyan-900/40 flex items-center justify-between text-xs flex-wrap gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-cyan-300 font-bold">
+                            Invoice #{activeConversationDetails.invoice.invoiceId}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-900/60 text-cyan-200 font-mono">
+                            {activeConversationDetails.invoice.expectedCryptoAmount} USDT ({activeConversationDetails.invoice.network})
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            activeConversationDetails.invoice.status === 'CONFIRMED'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : activeConversationDetails.invoice.status === 'PENDING'
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : 'bg-rose-500/20 text-rose-300'
+                          }`}>
+                            {activeConversationDetails.invoice.status}
+                          </span>
+                        </div>
+
+                        {activeConversationDetails.invoice.depositAddress && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-gray-400">
+                            <span>Address: {activeConversationDetails.invoice.depositAddress.substring(0, 10)}...</span>
+                            <button
+                              onClick={() => handleCopy(activeConversationDetails.invoice.depositAddress, 'support-dep-addr')}
+                              className="text-cyan-400 hover:text-white"
+                            >
+                              {copiedText === 'support-dep-addr' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Message Thread History */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-800">
+                      {activeConversationDetails.conversation.messages?.map((msg) => {
+                        const isAdmin = msg.sender === 'admin';
+                        return (
+                          <div
+                            key={msg.messageId}
+                            className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1 px-1">
+                              <span className="text-[10px] font-bold text-gray-400">
+                                {isAdmin ? '🛡️ Nexus Admin' : activeConversationDetails.conversation.userName || 'Customer'}
+                              </span>
+                              <span className="text-[9px] text-gray-500 font-mono">
+                                {new Date(msg.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+
+                            <div
+                              className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                                isAdmin
+                                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-tr-none'
+                                  : 'bg-gray-800 text-gray-200 border border-gray-700/60 rounded-tl-none'
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Canned Quick Response Chips */}
+                    <div className="px-3 py-2 bg-gray-900/40 border-t border-gray-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px]">
+                      <span className="text-gray-500 font-semibold shrink-0">Quick Canned:</span>
+                      <button
+                        onClick={() => handleSendAdminReply('We have verified your deposit and confirmed the transaction.')}
+                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                      >
+                        ✅ Verified & Confirmed
+                      </button>
+                      <button
+                        onClick={() => handleSendAdminReply('Please allow 1 to 2 minutes for blockchain confirmations to finalize on-chain.')}
+                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                      >
+                        ⏳ Awaiting On-chain Finality
+                      </button>
+                      <button
+                        onClick={() => handleSendAdminReply('Your funds have been securely credited to your trading account balance.')}
+                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                      >
+                        💰 Credited to Account
+                      </button>
+                    </div>
+
+                    {/* Reply Input Bar */}
+                    <div className="p-3 bg-gray-950 border-t border-gray-800">
+                      <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 focus-within:border-cyan-500">
+                        <input
+                          type="text"
+                          value={adminReplyText}
+                          onChange={(e) => setAdminReplyText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendAdminReply();
+                            }
+                          }}
+                          placeholder="Type response to customer..."
+                          className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none"
+                          disabled={isSendingReply}
+                        />
+                        <button
+                          onClick={() => handleSendAdminReply()}
+                          disabled={!adminReplyText.trim() || isSendingReply}
+                          className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{isSendingReply ? 'Sending...' : 'Reply'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
