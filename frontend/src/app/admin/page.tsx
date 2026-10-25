@@ -1496,38 +1496,197 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    {/* Linked Invoice Telemetry (If invoice exists) */}
-                    {activeConversationDetails.invoice && (
-                      <div className="px-4 py-2.5 bg-cyan-950/30 border-b border-cyan-900/40 flex items-center justify-between text-xs flex-wrap gap-2">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-cyan-300 font-bold">
-                            Invoice #{activeConversationDetails.invoice.invoiceId}
-                          </span>
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-900/60 text-cyan-200 font-mono">
-                            {activeConversationDetails.invoice.expectedCryptoAmount} USDT ({activeConversationDetails.invoice.network})
-                          </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            activeConversationDetails.invoice.status === 'CONFIRMED'
-                              ? 'bg-emerald-500/20 text-emerald-300'
-                              : activeConversationDetails.invoice.status === 'PENDING'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : 'bg-rose-500/20 text-rose-300'
-                          }`}>
-                            {activeConversationDetails.invoice.status}
-                          </span>
+                    {/* ============================================================
+                        FULL DEPOSIT INTELLIGENCE CARD
+                        Shows ALL invoice/deposit fields so admin has complete
+                        context without switching tabs.
+                    ============================================================ */}
+                    {activeConversationDetails.invoice ? (
+                      <div className="border-b border-gray-800/80 bg-gray-950/70">
+                        {/* Card Header */}
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-cyan-950/60 to-blue-950/40 border-b border-cyan-900/30">
+                          <div className="flex items-center gap-2.5">
+                            <Database className="w-3.5 h-3.5 text-cyan-400" />
+                            <span className="text-[11px] font-bold text-cyan-300 tracking-wide uppercase">Deposit Intelligence Card</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {/* Status Badge */}
+                            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                              activeConversationDetails.invoice.status === 'CONFIRMED'
+                                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40'
+                                : activeConversationDetails.invoice.status === 'PENDING'
+                                ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 animate-pulse'
+                                : activeConversationDetails.invoice.status === 'DETECTED'
+                                ? 'bg-blue-500/25 text-blue-300 border border-blue-500/40'
+                                : 'bg-rose-500/25 text-rose-300 border border-rose-500/40'
+                            }`}>
+                              ● {activeConversationDetails.invoice.status}
+                            </span>
+                            {/* Explorer Link */}
+                            {activeConversationDetails.invoice.txHash && (
+                              <a
+                                href={
+                                  activeConversationDetails.invoice.network === 'TRON_TRC20'
+                                    ? `https://tronscan.org/#/transaction/${activeConversationDetails.invoice.txHash}`
+                                    : `https://bscscan.com/tx/${activeConversationDetails.invoice.txHash}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-cyan-300 hover:text-white bg-cyan-900/40 border border-cyan-800/60 transition-colors"
+                                title="View on Block Explorer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Explorer</span>
+                              </a>
+                            )}
+                          </div>
                         </div>
 
-                        {activeConversationDetails.invoice.depositAddress && (
-                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-gray-400">
-                            <span>Address: {activeConversationDetails.invoice.depositAddress.substring(0, 10)}...</span>
-                            <button
-                              onClick={() => handleCopy(activeConversationDetails.invoice.depositAddress, 'support-dep-addr')}
-                              className="text-cyan-400 hover:text-white"
-                            >
-                              {copiedText === 'support-dep-addr' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            </button>
+                        {/* Grid of deposit fields */}
+                        <div className="grid grid-cols-2 gap-0 divide-x divide-y divide-gray-800/60 text-[11px]">
+
+                          {/* Invoice ID */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Invoice ID</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-cyan-300 truncate">{activeConversationDetails.invoice.invoiceId}</span>
+                              <button
+                                onClick={() => handleCopy(activeConversationDetails.invoice.invoiceId, 'copy-inv-id')}
+                                className="text-gray-500 hover:text-cyan-400 shrink-0"
+                              >
+                                {copiedText === 'copy-inv-id' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            </div>
                           </div>
-                        )}
+
+                          {/* Network */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Network</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                                activeConversationDetails.invoice.network === 'TRON_TRC20'
+                                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                              }`}>
+                                {activeConversationDetails.invoice.network === 'TRON_TRC20' ? 'TRON TRC-20' : 'BSC BEP-20'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Deposit Address */}
+                          <div className="px-3 py-2 space-y-0.5 col-span-2">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Deposit Wallet Address</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-white text-[10px] break-all leading-snug">
+                                {activeConversationDetails.invoice.depositAddress || '—'}
+                              </span>
+                              {activeConversationDetails.invoice.depositAddress && (
+                                <button
+                                  onClick={() => handleCopy(activeConversationDetails.invoice.depositAddress, 'copy-dep-addr')}
+                                  className="text-gray-500 hover:text-cyan-400 shrink-0"
+                                >
+                                  {copiedText === 'copy-dep-addr' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Amount Requested */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Requested Amount</div>
+                            <div className="font-bold text-white text-sm">
+                              {activeConversationDetails.invoice.expectedCryptoAmount || activeConversationDetails.invoice.amountUsd || '—'}
+                              <span className="text-[10px] text-gray-400 ml-1 font-normal">USDT</span>
+                            </div>
+                          </div>
+
+                          {/* Amount Received */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Received On-Chain</div>
+                            <div className={`font-bold text-sm ${
+                              activeConversationDetails.invoice.receivedAmount > 0 ? 'text-emerald-400' : 'text-gray-500'
+                            }`}>
+                              {activeConversationDetails.invoice.receivedAmount > 0
+                                ? `${activeConversationDetails.invoice.receivedAmount} USDT`
+                                : 'Not yet received'}
+                            </div>
+                          </div>
+
+                          {/* Network Fee Charged */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Gateway Fee</div>
+                            <div className="font-mono text-amber-300 text-[11px] font-bold">
+                              {activeConversationDetails.invoice.feeAmount
+                                ? `${activeConversationDetails.invoice.feeAmount} USDT`
+                                : activeConversationDetails.invoice.feesUsd
+                                ? `$${activeConversationDetails.invoice.feesUsd}`
+                                : '—'}
+                            </div>
+                          </div>
+
+                          {/* Confirmations */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Confirmations</div>
+                            <div className="font-mono text-[11px] font-bold text-white">
+                              {activeConversationDetails.invoice.confirmations !== undefined
+                                ? `${activeConversationDetails.invoice.confirmations} / ${
+                                    activeConversationDetails.invoice.network === 'TRON_TRC20' ? '19' : '3'
+                                  }`
+                                : '—'}
+                            </div>
+                          </div>
+
+                          {/* Transaction Hash */}
+                          {activeConversationDetails.invoice.txHash && (
+                            <div className="px-3 py-2 space-y-0.5 col-span-2">
+                              <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Transaction Hash (TxID)</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-emerald-300 text-[10px] break-all leading-snug">
+                                  {activeConversationDetails.invoice.txHash}
+                                </span>
+                                <button
+                                  onClick={() => handleCopy(activeConversationDetails.invoice.txHash, 'copy-txhash')}
+                                  className="text-gray-500 hover:text-cyan-400 shrink-0"
+                                >
+                                  {copiedText === 'copy-txhash' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Created At */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Invoice Created</div>
+                            <div className="font-mono text-[10px] text-gray-300">
+                              {activeConversationDetails.invoice.createdAt
+                                ? new Date(activeConversationDetails.invoice.createdAt).toLocaleString()
+                                : '—'}
+                            </div>
+                          </div>
+
+                          {/* Expires At */}
+                          <div className="px-3 py-2 space-y-0.5">
+                            <div className="text-gray-500 font-semibold uppercase tracking-wider text-[9px]">Expires / Expired At</div>
+                            <div className="font-mono text-[10px] text-gray-300">
+                              {activeConversationDetails.invoice.expiresAt
+                                ? new Date(activeConversationDetails.invoice.expiresAt).toLocaleString()
+                                : '—'}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    ) : activeConversationDetails.conversation.invoiceId ? (
+                      /* Invoice ID known but not resolved yet */
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-950/30 border-b border-amber-900/30 text-[11px] text-amber-300">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Linked Invoice <strong className="font-mono">{activeConversationDetails.conversation.invoiceId}</strong> — fetching deposit data...</span>
+                      </div>
+                    ) : (
+                      /* No invoice linked */
+                      <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/30 border-b border-gray-800/60 text-[11px] text-gray-500">
+                        <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>No deposit invoice linked to this conversation. Customer contacted from the main checkout page.</span>
                       </div>
                     )}
 
@@ -1567,25 +1726,43 @@ export default function AdminDashboardPage() {
                     </div>
 
                     {/* Canned Quick Response Chips */}
-                    <div className="px-3 py-2 bg-gray-900/40 border-t border-gray-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-                      <span className="text-gray-500 font-semibold shrink-0">Quick Canned:</span>
+                    <div className="px-3 py-2 bg-gray-900/50 border-t border-gray-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px]">
+                      <span className="text-gray-500 font-semibold shrink-0 text-[10px]">⚡ Canned:</span>
                       <button
-                        onClick={() => handleSendAdminReply('We have verified your deposit and confirmed the transaction.')}
-                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                        onClick={() => handleSendAdminReply('✅ We have verified your deposit on the blockchain. Your transaction has been confirmed and your funds have been credited to your account.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/60 text-emerald-300 hover:text-emerald-200 border border-emerald-800/50 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
                       >
-                        ✅ Verified & Confirmed
+                        ✅ Deposit Verified & Credited
                       </button>
                       <button
-                        onClick={() => handleSendAdminReply('Please allow 1 to 2 minutes for blockchain confirmations to finalize on-chain.')}
-                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                        onClick={() => handleSendAdminReply('⏳ Your transaction has been detected on the blockchain and is currently awaiting the required number of confirmations. Please allow 1–3 minutes for this to finalize automatically.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-amber-900/30 hover:bg-amber-900/60 text-amber-300 hover:text-amber-200 border border-amber-800/50 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
                       >
-                        ⏳ Awaiting On-chain Finality
+                        ⏳ Awaiting Confirmations
                       </button>
                       <button
-                        onClick={() => handleSendAdminReply('Your funds have been securely credited to your trading account balance.')}
-                        className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer"
+                        onClick={() => handleSendAdminReply('🔍 Please share your deposit transaction ID (TxHash) so I can look it up directly on the blockchain explorer and verify its status for you.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-blue-900/30 hover:bg-blue-900/60 text-blue-300 hover:text-blue-200 border border-blue-800/50 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
                       >
-                        💰 Credited to Account
+                        🔍 Request TxHash
+                      </button>
+                      <button
+                        onClick={() => handleSendAdminReply('⚠️ Please ensure you are sending USDT on the correct network matching your invoice. Sending on the wrong network may result in permanent loss of funds.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-rose-900/30 hover:bg-rose-900/60 text-rose-300 hover:text-rose-200 border border-rose-800/50 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        ⚠️ Wrong Network Warning
+                      </button>
+                      <button
+                        onClick={() => handleSendAdminReply('💰 Your funds have been securely credited and are now available in your trading account balance. You may proceed with your trading activities.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-cyan-900/30 hover:bg-cyan-900/60 text-cyan-300 hover:text-cyan-200 border border-cyan-800/50 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        💰 Funds Credited to Account
+                      </button>
+                      <button
+                        onClick={() => handleSendAdminReply('🔄 Your deposit invoice has expired (15-minute window). Please return to the checkout page and generate a new invoice to proceed with a fresh deposit address.')}
+                        className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 shrink-0 transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        🔄 Invoice Expired — Regenerate
                       </button>
                     </div>
 
