@@ -18,27 +18,36 @@ import {
 
 /**
  * Resolves the backend API URL safely across local and production environments.
- * Prevents malformed paths or missing /api/v1 prefixes.
+ * 
+ * Strategy:
+ * - In the browser (client-side): routes calls through Vercel's reverse proxy at
+ *   /api/backend/... which forwards to the Render backend server-to-server.
+ *   This completely eliminates CORS issues because the browser talks to the same
+ *   origin (nexus-gateway-vert.vercel.app), and Vercel handles the cross-origin call.
+ * - On the server (SSR / API routes): calls the Render backend directly.
  */
 function resolveBackendUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-
-  // If user set placeholder 'https://onrender.com' or missing, use verified Render URL
-  if (
-    !envUrl ||
-    envUrl === '' ||
-    envUrl === 'https://onrender.com' ||
-    envUrl.startsWith('https://onrender.com')
-  ) {
-    return 'https://nexus-gateway-backend-2n4s.onrender.com/api/v1';
+  // Server-side (SSR, API routes): call Render directly using env var or hardcoded URL
+  if (typeof window === 'undefined') {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (
+      !envUrl ||
+      envUrl === '' ||
+      envUrl === 'https://onrender.com' ||
+      envUrl.startsWith('https://onrender.com')
+    ) {
+      return 'https://nexus-gateway-backend-2n4s.onrender.com/api/v1';
+    }
+    let cleanUrl = envUrl.replace(/\/+$/, '');
+    if (!cleanUrl.endsWith('/api/v1')) {
+      cleanUrl = `${cleanUrl}/api/v1`;
+    }
+    return cleanUrl;
   }
 
-  // Ensure trailing slash is removed and /api/v1 is appended if omitted
-  let cleanUrl = envUrl.replace(/\/+$/, '');
-  if (!cleanUrl.endsWith('/api/v1')) {
-    cleanUrl = `${cleanUrl}/api/v1`;
-  }
-  return cleanUrl;
+  // Client-side: use Vercel reverse proxy to avoid CORS entirely.
+  // The rewrite in vercel.json maps /api/backend/:path* → Render backend.
+  return '/api/backend';
 }
 
 const API_BASE_URL = resolveBackendUrl();
@@ -63,6 +72,37 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Backend Keep-Alive (client-side only)
+// Pings /health every 9 minutes to prevent the Render free-tier backend from
+// spinning down between user interactions.  Uses a module-level singleton so
+// only ONE interval is ever registered regardless of how many components
+// import this file.
+// ---------------------------------------------------------------------------
+if (typeof window !== 'undefined') {
+  const KEEP_ALIVE_MS = 9 * 60 * 1000; // 9 minutes
+  let _keepAliveStarted = false;
+
+  function _startKeepAlive() {
+    if (_keepAliveStarted) return;
+    _keepAliveStarted = true;
+
+    const ping = () => {
+      fetch('/api/backend/health', { method: 'GET', cache: 'no-store' }).catch(() => {
+        // Silently ignore — keep-alive is best-effort
+      });
+    };
+
+    // First ping after 30 s (let the page finish loading first)
+    setTimeout(() => {
+      ping();
+      setInterval(ping, KEEP_ALIVE_MS);
+    }, 30_000);
+  }
+
+  _startKeepAlive();
+}
 
 export interface CreateInvoicePayload {
   userId: string;

@@ -46,6 +46,8 @@ export function SupportWidgetInner() {
   const [isSending, setIsSending] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLiveConnected, setIsLiveConnected] = useState(true);
+  // Guard: only poll backend if user has actually sent a message (prevents cold-user polling flood)
+  const [hasConversation, setHasConversation] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,9 +68,38 @@ export function SupportWidgetInner() {
     setSessionId(storedSession);
   }, []);
 
-  // 2. Poll for conversation updates
+  // 2. On mount: do ONE silent check to see if conversation already exists (e.g. returning user).
+  //    If it does, mark hasConversation = true so polling starts. No continuous polling here.
   useEffect(() => {
     if (!sessionId) return;
+    let isMounted = true;
+
+    async function checkExistingConversation() {
+      try {
+        const data = await getUserSupportConversation(sessionId);
+        if (isMounted && data && Array.isArray(data.messages) && data.messages.length > 0) {
+          setHasConversation(true);
+          setMessages(data.messages);
+          if (!isOpen) {
+            setUnreadCount(data.unreadCountUser || 0);
+          }
+        }
+      } catch {
+        // Backend sleeping or no conversation — silently ignore; do NOT set isLiveConnected false
+        // because the user hasn't tried to connect yet.
+      }
+    }
+
+    checkExistingConversation();
+    return () => { isMounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  // 3. Active polling — ONLY if the user already has a conversation.
+  //    This prevents the backend (Render free tier) from being overwhelmed by
+  //    polling requests from every visitor who has never opened support.
+  useEffect(() => {
+    if (!sessionId || !hasConversation) return;
 
     let isMounted = true;
 
@@ -86,23 +117,23 @@ export function SupportWidgetInner() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Silently mark reconnecting without spamming errors
         if (isMounted) setIsLiveConnected(false);
       }
     }
 
-    // Immediate initial fetch
+    // Immediate fetch when conversation is confirmed active
     fetchConversation();
 
-    // Active polling interval: 2.5s when open, 8s when closed
-    const pollInterval = setInterval(fetchConversation, isOpen ? 2500 : 8000);
+    // Poll every 3s when open, every 12s when minimised (reduced frequency vs before)
+    const pollInterval = setInterval(fetchConversation, isOpen ? 3000 : 12000);
 
     return () => {
       isMounted = false;
       clearInterval(pollInterval);
     };
-  }, [sessionId, isOpen]);
+  }, [sessionId, hasConversation, isOpen]);
 
   // Scroll to bottom when messages update or drawer opens
   useEffect(() => {
@@ -148,8 +179,12 @@ export function SupportWidgetInner() {
       if (res && res.messages) {
         setMessages(res.messages);
       }
+      // Activate polling now that the user has an active conversation
+      setHasConversation(true);
+      setIsLiveConnected(true);
     } catch (err) {
       console.error('Failed to send support message:', err);
+      setIsLiveConnected(false);
     } finally {
       setIsSending(false);
     }
