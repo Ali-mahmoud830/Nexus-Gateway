@@ -68,10 +68,16 @@ export function SupportWidgetInner() {
     setSessionId(storedSession);
   }, []);
 
-  // 2. On mount: do ONE silent check to see if conversation already exists (e.g. returning user).
-  //    If it does, mark hasConversation = true so polling starts. No continuous polling here.
+  // 2. On mount: ONLY check if the user has previously sent a support message.
+  //    Brand new visitors who haven't sent a message will make ZERO network calls.
   useEffect(() => {
     if (!sessionId) return;
+    const hasHistory =
+      typeof window !== 'undefined' &&
+      localStorage.getItem('nexus_support_has_sent_msg') === 'true';
+
+    if (!hasHistory) return;
+
     let isMounted = true;
 
     async function checkExistingConversation() {
@@ -85,8 +91,7 @@ export function SupportWidgetInner() {
           }
         }
       } catch {
-        // Backend sleeping or no conversation — silently ignore; do NOT set isLiveConnected false
-        // because the user hasn't tried to connect yet.
+        // Backend sleeping or no conversation — silently ignore
       }
     }
 
@@ -180,6 +185,9 @@ export function SupportWidgetInner() {
         setMessages(res.messages);
       }
       // Activate polling now that the user has an active conversation
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nexus_support_has_sent_msg', 'true');
+      }
       setHasConversation(true);
       setIsLiveConnected(true);
     } catch (err) {

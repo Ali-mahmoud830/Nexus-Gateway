@@ -52,23 +52,86 @@ function resolveBackendUrl(): string {
 
 const API_BASE_URL = resolveBackendUrl();
 
+// ---------------------------------------------------------------------------
+// Custom event broadcasted during backend cold-start wake-up so the UI can
+// show a friendly "connecting…" banner instead of a red error.
+// ---------------------------------------------------------------------------
+export const NEXUS_WAKING_EVENT = 'nexus_backend_waking';
+export const NEXUS_READY_EVENT  = 'nexus_backend_ready';
+
+function broadcastWaking() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(NEXUS_WAKING_EVENT));
+  }
+}
+function broadcastReady() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(NEXUS_READY_EVENT));
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 12000,
+  timeout: 25000,   // 25 s — enough for a Render free-tier cold start (~15–20 s)
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Intercept 401 Unauthorized responses to notify the admin page to trigger re-auth
+// ---------------------------------------------------------------------------
+// Response interceptor — two responsibilities:
+//  1. 401 → fire admin re-auth event
+//  2. 503 (Render cold start) → auto-retry up to 3 times with backoff,
+//     broadcasting NEXUS_WAKING_EVENT so the UI can show a wake-up banner.
+// ---------------------------------------------------------------------------
+const MAX_RETRIES = 3;
+
 apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  (response) => {
+    // If we were previously waking up, broadcast ready now
+    if ((response.config as any).__wasRetried) {
+      broadcastReady();
+    }
+    return response;
+  },
+  async (error) => {
+    const config = error.config as any;
+    const status  = error.response?.status;
+
+    // ── 401: admin session expired ──────────────────────────────────────────
+    if (status === 401) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('nexus_admin_unauthorized'));
       }
+      return Promise.reject(error);
     }
+
+    // ── 503 / network error: Render is waking up — retry with backoff ───────
+    const isRetryable =
+      status === 503 ||
+      status === 502 ||
+      error.code === 'ECONNABORTED' ||   // timeout
+      !error.response;                   // network unreachable
+
+    if (isRetryable && config && !config.__disableRetry) {
+      config.__retryCount = (config.__retryCount || 0) + 1;
+
+      if (config.__retryCount <= MAX_RETRIES) {
+        config.__wasRetried = true;
+        broadcastWaking();
+
+        // Exponential back-off: 3 s, 6 s, 10 s
+        const delays = [3000, 6000, 10000];
+        const delay  = delays[config.__retryCount - 1] ?? 10000;
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return apiClient(config);
+      }
+
+      // All retries exhausted — backend did not wake in time
+      broadcastReady(); // clears the banner
+    }
+
     return Promise.reject(error);
   },
 );

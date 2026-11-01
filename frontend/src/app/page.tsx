@@ -105,7 +105,16 @@ export default function CheckoutPortal() {
       });
       setActiveInvoice(invoice);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate checkout invoice');
+      const rawMsg = err instanceof Error ? err.message : '';
+      if (rawMsg.includes('503') || rawMsg.includes('502') || rawMsg.includes('Network Error')) {
+        setError(
+          isRtl
+            ? 'خادم بوابة الدفع (Render Backend) معلق أو قيد الاستيقاظ حالياً. إذا كانت الخدمة معلقة في لوحة تحكم Render، يرجى الضغط على Resume لتفعيلها.'
+            : 'The payment gateway backend (Render) is currently waking up or suspended. If suspended, please click "Resume" in your Render dashboard.'
+        );
+      } else {
+        setError(rawMsg || 'Failed to generate checkout invoice');
+      }
     } finally {
       setIsLoading(false);
     }
