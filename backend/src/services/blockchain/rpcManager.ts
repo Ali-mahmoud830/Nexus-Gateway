@@ -16,19 +16,45 @@ import { env } from '../../config/env';
 import { logger } from '../../utils/logger';
 import { RpcNodeHealth } from './types';
 
+// Battle-tested, high-capacity official Binance Smart Chain public endpoints
+const RELIABLE_BSC_FALLBACKS = [
+  'https://bsc-dataseed.binance.org',
+  'https://bsc-dataseed1.defibit.io',
+  'https://bsc-dataseed1.ninicoin.io',
+  'https://bsc-rpc.publicnode.com',
+];
+
 export class BscRpcManager {
-  private urls: string[];
+  private urls: string[] = [];
   private providers: Map<string, ethers.JsonRpcProvider> = new Map();
   private currentIndex: number = 0;
   private nodeHealth: Map<string, RpcNodeHealth> = new Map();
-  private readonly requestTimeoutMs: number = 10_000;
+  private readonly requestTimeoutMs: number = 8_000;
   private readonly maxFailuresBeforeCooldown: number = 3;
+  private lastLoggedAllFailedAt: number = 0;
 
   constructor() {
-    this.urls = [...env.bsc.rpcUrls].filter((url) => url && url.trim().length > 0);
+    // 1. Gather all candidate URLs from environment and reliable fallbacks
+    const candidateUrls = [
+      ...env.bsc.rpcUrls,
+      ...RELIABLE_BSC_FALLBACKS,
+    ];
+
+    // 2. Filter out null/empty and known broken rate-limited domains (e.g. free 1rpc which caps usage)
+    const filtered = candidateUrls
+      .map((u) => u?.trim())
+      .filter((u): u is string => {
+        if (!u || u.length === 0) return false;
+        // 1rpc free plan caps strictly with -32001 errors; ignore if using free public domain
+        if (u.includes('1rpc.io')) return false;
+        return true;
+      });
+
+    // Deduplicate
+    this.urls = Array.from(new Set(filtered));
 
     if (this.urls.length === 0) {
-      throw new Error('[BscRpcManager] No valid BSC RPC URLs configured in environment.');
+      this.urls = [...RELIABLE_BSC_FALLBACKS];
     }
 
     // Initialize health records and providers
@@ -41,7 +67,7 @@ export class BscRpcManager {
         lastChecked: new Date(),
       });
 
-      // ethers.JsonRpcProvider with custom static network and fetch options
+      // ethers.JsonRpcProvider with custom static network
       const provider = new ethers.JsonRpcProvider(
         url,
         {
@@ -55,7 +81,7 @@ export class BscRpcManager {
       this.providers.set(url, provider);
     }
 
-    logger.info(`[BscRpcManager] Initialized with ${this.urls.length} RPC node(s)`, {
+    logger.info(`[BscRpcManager] Initialized with ${this.urls.length} resilient RPC node(s)`, {
       primary: this.urls[0],
       fallbacks: this.urls.slice(1),
     });
@@ -117,19 +143,32 @@ export class BscRpcManager {
 
         this.recordFailure(currentUrl, lastError.message);
 
-        logger.warn(
-          `[BscRpcManager] Node failure on "${currentUrl}" (${attempts}/${maxAttempts}). Rotating to next RPC node. Error: ${lastError.message}`,
-        );
+        // Only log warning if not already repeatedly failing to prevent log pollution
+        const isQuotaErr = lastError.message.includes('usage limit') || 
+                           lastError.message.includes('-32001') || 
+                           lastError.message.includes('billing/plan');
+
+        if (attempts <= 2 || isQuotaErr) {
+          logger.warn(
+            `[BscRpcManager] Node failure on "${currentUrl}" (${attempts}/${maxAttempts}). Rotating to next RPC node. Reason: ${lastError.message}`,
+          );
+        }
 
         // Rotate to next node
         this.rotateToNextNode();
       }
     }
 
-    logger.error('[BscRpcManager] All BSC RPC endpoints failed.', {
-      attempts,
-      lastError: lastError?.message,
-    });
+    const now = Date.now();
+    // Throttle "All BSC RPC endpoints failed" error to once per 60 seconds
+    if (now - this.lastLoggedAllFailedAt > 60_000) {
+      this.lastLoggedAllFailedAt = now;
+      logger.error('[BscRpcManager] All BSC RPC endpoints failed.', {
+        attempts,
+        lastError: lastError?.message,
+      });
+    }
+
     throw new Error(
       `[BscRpcManager] All ${this.urls.length} BSC RPC nodes failed. Last error: ${lastError?.message}`,
     );
@@ -140,10 +179,22 @@ export class BscRpcManager {
    */
   private rotateToNextNode(): void {
     const previous = this.urls[this.currentIndex];
-    this.currentIndex = (this.currentIndex + 1) % this.urls.length;
-    const next = this.urls[this.currentIndex];
 
-    logger.info(`[BscRpcManager] Switched active RPC from ${previous} -> ${next}`);
+    // Look for next healthy node
+    for (let i = 1; i <= this.urls.length; i++) {
+      const idx = (this.currentIndex + i) % this.urls.length;
+      const candidateUrl = this.urls[idx]!;
+      const health = this.nodeHealth.get(candidateUrl);
+      if (!health || health.isHealthy) {
+        this.currentIndex = idx;
+        break;
+      }
+    }
+
+    const next = this.urls[this.currentIndex];
+    if (previous !== next) {
+      logger.info(`[BscRpcManager] Switched active RPC from ${previous} -> ${next}`);
+    }
   }
 
   /**
@@ -167,10 +218,17 @@ export class BscRpcManager {
     if (health) {
       health.consecutiveFailures++;
       health.lastChecked = new Date();
-      if (health.consecutiveFailures >= this.maxFailuresBeforeCooldown) {
+
+      // Permanent plan limit or quota reached -> mark unhealthy immediately
+      const isQuotaLimit =
+        errorMsg.includes('usage limit') ||
+        errorMsg.includes('-32001') ||
+        errorMsg.includes('billing/plan');
+
+      if (isQuotaLimit || health.consecutiveFailures >= this.maxFailuresBeforeCooldown) {
         health.isHealthy = false;
         logger.error(
-          `[BscRpcManager] RPC node "${url}" exceeded max consecutive failures (${this.maxFailuresBeforeCooldown}). Marked unhealthy. Error: ${errorMsg}`,
+          `[BscRpcManager] RPC node "${url}" marked unhealthy (${isQuotaLimit ? 'QUOTA_EXCEEDED' : 'MAX_FAILURES'}). Error: ${errorMsg}`,
         );
       }
     }

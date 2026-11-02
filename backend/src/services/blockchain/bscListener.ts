@@ -23,11 +23,12 @@ import { ListenerState, PaymentDetectedEvent } from './types';
 // ERC-20 / BEP-20 Transfer(address indexed from, address indexed to, uint256 value)
 const TRANSFER_TOPIC = ethers.id('Transfer(address,address,uint256)');
 
-// Max block chunk per eth_getLogs to prevent RPC payload limit errors
-const MAX_BLOCK_CHUNK = 50;
+// Max block chunk per eth_getLogs to prevent RPC payload limit errors (5 is safe for all plans including QuickNode discover tier)
+const MAX_BLOCK_CHUNK = 5;
 
-// Poll interval in milliseconds (BSC produces blocks every ~3 seconds)
-const POLL_INTERVAL_MS = 3_000;
+// Poll interval in milliseconds (3s when active deposits exist; 12s when idle)
+const ACTIVE_POLL_INTERVAL_MS = 3_000;
+const IDLE_POLL_INTERVAL_MS = 12_000;
 
 // USDT on BSC has 18 decimals
 const BSC_USDT_DECIMALS = 18;
@@ -37,6 +38,8 @@ export class BscListener {
   private timer: NodeJS.Timeout | null = null;
   private lastScannedBlock: number = 0;
   private isProcessing: boolean = false;
+  private consecutiveFailures: number = 0;
+  private hasActiveInvoices: boolean = false;
 
   /**
    * Starts the continuous block scanning loop.
@@ -88,21 +91,34 @@ export class BscListener {
   }
 
   /**
-   * Schedules the next block scan iteration.
+   * Schedules the next block scan iteration with adaptive backoff on errors.
    */
-  private scheduleNextPoll(delayMs: number = POLL_INTERVAL_MS): void {
+  private scheduleNextPoll(delayMs?: number): void {
     if (!this.isRunning) return;
+
+    let defaultDelay = this.hasActiveInvoices ? ACTIVE_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS;
+    if (this.consecutiveFailures > 0) {
+      // Exponential backoff: 6s, 12s, 24s, up to 30s max
+      defaultDelay = Math.min(30_000, 3_000 * Math.pow(2, Math.min(this.consecutiveFailures, 3)));
+    }
+
+    const effectiveDelay = delayMs !== undefined ? delayMs : defaultDelay;
 
     this.timer = setTimeout(async () => {
       try {
         await this.scanCycle();
+        this.consecutiveFailures = 0;
       } catch (err) {
+        this.consecutiveFailures++;
         const msg = err instanceof Error ? err.message : String(err);
-        logger.error(`[BscListener] Unexpected error in scan cycle: ${msg}`);
+        // Only log on initial failure or every 10 iterations to prevent Render log floods
+        if (this.consecutiveFailures <= 2 || this.consecutiveFailures % 10 === 0) {
+          logger.error(`[BscListener] Scan iteration failed (${this.consecutiveFailures}x): ${msg}`);
+        }
       } finally {
-        this.scheduleNextPoll(POLL_INTERVAL_MS);
+        this.scheduleNextPoll();
       }
-    }, delayMs);
+    }, effectiveDelay);
   }
 
   /**
@@ -118,6 +134,8 @@ export class BscListener {
         network: CryptoNetwork.BSC,
         status: { $in: [InvoiceStatus.PENDING, InvoiceStatus.DETECTED] },
       }).select('depositAddress');
+
+      this.hasActiveInvoices = activeInvoices.length > 0;
 
       // 2. Fetch current block tip
       const currentBlock = await bscRpcManager.executeWithFailover((provider) =>
@@ -215,9 +233,13 @@ export class BscListener {
       // 6. Update cursor in memory and database
       this.lastScannedBlock = toBlock;
       await BlockCursor.setCursor(CryptoNetwork.BSC, toBlock);
+      this.consecutiveFailures = 0; // Reset consecutive failures on successful scan
     } catch (err) {
+      this.consecutiveFailures++;
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn(`[BscListener] Scan iteration failed: ${msg}`);
+      if (this.consecutiveFailures <= 2 || this.consecutiveFailures % 10 === 0) {
+        logger.warn(`[BscListener] Scan iteration failed (${this.consecutiveFailures}x): ${msg}`);
+      }
     } finally {
       this.isProcessing = false;
     }

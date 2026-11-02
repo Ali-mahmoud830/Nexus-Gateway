@@ -25,11 +25,11 @@ services:
       - key: MONGODB_DB_NAME
         value: crypto_gateway
       - key: BSC_RPC_PRIMARY
-        value: https://bsc-rpc.publicnode.com
+        value: https://bsc-dataseed.binance.org
       - key: BSC_RPC_SECONDARY
-        value: https://bsc.drpc.org
+        value: https://bsc-dataseed1.defibit.io
       - key: BSC_RPC_TERTIARY
-        value: https://1rpc.io/bnb
+        value: https://bsc-rpc.publicnode.com
       - key: BSC_USDT_CONTRACT
         value: "0x55d398326f99059fF775485246999027B3197955"
       - key: BSC_CONFIRMATIONS_REQUIRED
