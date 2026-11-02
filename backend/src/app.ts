@@ -106,7 +106,7 @@ export function createApp(): Application {
 
   app.use(
     cors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, origin?: any) => void) => {
         // Always allow to guarantee browser polling never drops
         callback(null, isAllowedOrigin(origin) ? true : origin || '*');
       },
@@ -131,7 +131,7 @@ export function createApp(): Application {
         write: (message: string) => logger.http(message.trim()),
       },
       // Skip logging health checks to reduce noise
-      skip: (req) => req.path === `/${env.apiVersion}/health`,
+      skip: (req: Request) => req.path === `/${env.apiVersion}/health`,
     }),
   );
 
