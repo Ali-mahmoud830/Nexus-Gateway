@@ -21,6 +21,8 @@ const RELIABLE_BSC_FALLBACKS = [
   'https://bsc-dataseed.binance.org',
   'https://bsc-dataseed1.defibit.io',
   'https://bsc-dataseed1.ninicoin.io',
+  'https://bsc-dataseed2.defibit.io',
+  'https://binance.llamarpc.com',
   'https://bsc-rpc.publicnode.com',
 ];
 
@@ -175,17 +177,34 @@ export class BscRpcManager {
   }
 
   /**
+   * Checks if an RPC node is available or if its cooldown has elapsed.
+   */
+  private isNodeAvailable(url: string): boolean {
+    const health = this.nodeHealth.get(url);
+    if (!health) return true;
+    if (health.isHealthy) return true;
+
+    // Cooldown auto-recovery: retry unhealthy nodes after 60s
+    const COOLDOWN_MS = 60_000;
+    if (Date.now() - health.lastChecked.getTime() > COOLDOWN_MS) {
+      health.isHealthy = true;
+      health.consecutiveFailures = 0;
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Rotates currentIndex to the next available healthy node.
    */
   private rotateToNextNode(): void {
     const previous = this.urls[this.currentIndex];
 
-    // Look for next healthy node
+    // Look for next available node (healthy or past cooldown)
     for (let i = 1; i <= this.urls.length; i++) {
       const idx = (this.currentIndex + i) % this.urls.length;
       const candidateUrl = this.urls[idx]!;
-      const health = this.nodeHealth.get(candidateUrl);
-      if (!health || health.isHealthy) {
+      if (this.isNodeAvailable(candidateUrl)) {
         this.currentIndex = idx;
         break;
       }

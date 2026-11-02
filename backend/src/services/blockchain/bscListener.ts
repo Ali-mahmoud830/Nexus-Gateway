@@ -60,10 +60,24 @@ export class BscListener {
       );
 
       // Start from stored cursor, or current tip - 5 blocks for safe warmup
-      this.lastScannedBlock = await BlockCursor.getCursor(
+      const storedCursor = await BlockCursor.getCursor(
         CryptoNetwork.BSC,
         Math.max(0, currentBlock - 5),
       );
+
+      // Clamp cursor if stored block is too far behind (archive RPC limit safety)
+      const MAX_WARMUP_LAG = 50; // ~2.5 minutes of BSC blocks
+      if (currentBlock - storedCursor > MAX_WARMUP_LAG) {
+        const jumpTo = Math.max(0, currentBlock - 20);
+        logger.warn(
+          `[BscListener] Stored BSC cursor #${storedCursor} is ${currentBlock - storedCursor} blocks behind tip #${currentBlock}. ` +
+          `Fast-forwarding to #${jumpTo} to avoid archive RPC limits.`,
+        );
+        this.lastScannedBlock = jumpTo;
+        await BlockCursor.setCursor(CryptoNetwork.BSC, this.lastScannedBlock);
+      } else {
+        this.lastScannedBlock = storedCursor;
+      }
 
       logger.info(
         `[BscListener] Synced with BSC chain. Current tip: #${currentBlock}, starting scan at: #${this.lastScannedBlock}`,
@@ -129,10 +143,21 @@ export class BscListener {
     this.isProcessing = true;
 
     try {
+      // 0. Auto-expire old pending invoices so they don't hold the scanner open
+      await Invoice.updateMany(
+        {
+          network: CryptoNetwork.BSC,
+          status: InvoiceStatus.PENDING,
+          expiresAt: { $lt: new Date() },
+        },
+        { $set: { status: InvoiceStatus.EXPIRED } },
+      );
+
       // 1. Fetch active temporary deposit addresses
       const activeInvoices = await Invoice.find({
         network: CryptoNetwork.BSC,
         status: { $in: [InvoiceStatus.PENDING, InvoiceStatus.DETECTED] },
+        expiresAt: { $gt: new Date() },
       }).select('depositAddress');
 
       this.hasActiveInvoices = activeInvoices.length > 0;
@@ -159,6 +184,18 @@ export class BscListener {
         this.lastScannedBlock = Math.max(this.lastScannedBlock, currentBlock - 2);
         await BlockCursor.setCursor(CryptoNetwork.BSC, this.lastScannedBlock);
         return;
+      }
+
+      // Guard against excessive block lag even if active invoices exist
+      const MAX_CATCHUP_BLOCKS = 100;
+      if (currentBlock - this.lastScannedBlock > MAX_CATCHUP_BLOCKS) {
+        const clampedBlock = Math.max(0, currentBlock - 20);
+        logger.warn(
+          `[BscListener] Scan lag (${currentBlock - this.lastScannedBlock} blocks) exceeded max catch-up. ` +
+          `Clamping cursor from #${this.lastScannedBlock} -> #${clampedBlock}.`,
+        );
+        this.lastScannedBlock = clampedBlock;
+        await BlockCursor.setCursor(CryptoNetwork.BSC, clampedBlock);
       }
 
       // 3. Calculate block chunk
@@ -239,6 +276,19 @@ export class BscListener {
       const msg = err instanceof Error ? err.message : String(err);
       if (this.consecutiveFailures <= 2 || this.consecutiveFailures % 10 === 0) {
         logger.warn(`[BscListener] Scan iteration failed (${this.consecutiveFailures}x): ${msg}`);
+      }
+
+      // Auto-recovery: If 3 consecutive failures occur, jump cursor close to tip to unblock scanner
+      if (this.consecutiveFailures >= 3) {
+        try {
+          const freshTip = await bscRpcManager.executeWithFailover((p) => p.getBlockNumber());
+          this.lastScannedBlock = Math.max(0, freshTip - 10);
+          await BlockCursor.setCursor(CryptoNetwork.BSC, this.lastScannedBlock);
+          logger.info(`[BscListener] Auto-recovered cursor to fresh tip #${this.lastScannedBlock} after ${this.consecutiveFailures} failures.`);
+          this.consecutiveFailures = 0;
+        } catch {
+          // Ignore fallback error
+        }
       }
     } finally {
       this.isProcessing = false;

@@ -134,10 +134,21 @@ export class TronListener {
     this.isProcessing = true;
 
     try {
+      // 0. Auto-expire old pending TRON invoices
+      await Invoice.updateMany(
+        {
+          network: CryptoNetwork.TRON,
+          status: InvoiceStatus.PENDING,
+          expiresAt: { $lt: new Date() },
+        },
+        { $set: { status: InvoiceStatus.EXPIRED } },
+      );
+
       // 1. Fetch all active TRON invoices
       const activeInvoices = await Invoice.find({
         network: CryptoNetwork.TRON,
         status: { $in: [InvoiceStatus.PENDING, InvoiceStatus.DETECTED] },
+        expiresAt: { $gt: new Date() },
       }).select('depositAddress invoiceId status paymentDetails');
 
       if (activeInvoices.length === 0) {

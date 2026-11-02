@@ -39,7 +39,8 @@ export class GasStation {
   private tronAddress: string = '';
 
   constructor() {
-    this.init();
+    // Intentionally deferred. Initialization is explicitly performed via init()
+    // in server.ts immediately after the HD wallet is ready.
   }
 
   /**

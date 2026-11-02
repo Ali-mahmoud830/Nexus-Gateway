@@ -28,7 +28,7 @@ import { logger } from './utils/logger';
 import { createApp } from './app';
 import { initHdWallet } from './services/hdWallet';
 import { startBlockchainListeners, stopBlockchainListeners } from './services/blockchain';
-import { startSweeperWorker, stopSweeperWorker } from './services/sweeper';
+import { gasStation, startSweeperWorker, stopSweeperWorker } from './services/sweeper';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000; // 10 s to drain in-flight requests
 
@@ -58,6 +58,7 @@ async function bootstrap(): Promise<void> {
   // 2. HD Wallet Initialisation (validates mnemonic & caches master HD key)
   // -------------------------------------------------------------------------
   await initHdWallet();
+  gasStation.init();
 
   // -------------------------------------------------------------------------
   // 3. Express application

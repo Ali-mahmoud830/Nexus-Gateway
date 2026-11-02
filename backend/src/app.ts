@@ -143,6 +143,21 @@ export function createApp(): Application {
   app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
   // -------------------------------------------------------------------------
+  // 7b. Root health checks & ping (Render, load balancers, uptime monitors)
+  // -------------------------------------------------------------------------
+  app.get(['/', '/healthz'], (_req: Request, res: Response) => {
+    res.status(StatusCodes.OK).json({
+      status: 'ok',
+      service: 'Nexus Crypto Gateway API',
+      version: '1.0.0',
+    });
+  });
+
+  app.head(['/', '/healthz'], (_req: Request, res: Response) => {
+    res.status(StatusCodes.OK).end();
+  });
+
+  // -------------------------------------------------------------------------
   // 8. API routes
   // -------------------------------------------------------------------------
   app.use(`/api/${env.apiVersion}`, apiRouter);
