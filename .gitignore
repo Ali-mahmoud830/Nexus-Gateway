@@ -88,4 +88,7 @@ data/
 dump/
 
 # ----- Standalone Sweeper secrets -----
+.env.sweeper
+**/.env.sweeper
 tools/sweeper/.env.sweeper
+backend/tools/sweeper/.env.sweeper

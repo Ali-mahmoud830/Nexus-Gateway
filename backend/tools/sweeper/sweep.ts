@@ -41,8 +41,22 @@ import * as bip39 from 'bip39';
 import HDKey from 'hdkey';
 import TronWeb from 'tronweb';
 
-// ─── Load .env.sweeper (located next to this script) ──────────────────────────
-dotenv.config({ path: path.resolve(__dirname, '.env.sweeper') });
+// ─── Load .env.sweeper ────────────────────────────────────────────────────────
+import fs from 'fs';
+
+const candidateEnvPaths = [
+  path.resolve(__dirname, '.env.sweeper'),
+  path.resolve(process.cwd(), '.env.sweeper'),
+  path.resolve(process.cwd(), 'tools/sweeper/.env.sweeper'),
+  path.resolve(process.cwd(), 'backend/tools/sweeper/.env.sweeper'),
+];
+
+const foundEnvPath = candidateEnvPaths.find((p) => fs.existsSync(p));
+if (foundEnvPath) {
+  dotenv.config({ path: foundEnvPath });
+} else {
+  dotenv.config(); // fallback to standard .env if present
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,7 +66,7 @@ const ERC20_ABI = [
   'function transfer(address to, uint256 value) returns (bool)',
 ];
 
-const BSC_USDT_CONTRACT  = '0x55d398326f99059fF77548524799027B3197955'; // BEP-20 USDT
+const BSC_USDT_CONTRACT  = '0x55d398326f99059fF775485246999027B3197955'; // BEP-20 USDT
 const TRON_USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';       // TRC-20 USDT
 
 const BSC_USDT_DECIMALS  = 18;
@@ -218,6 +232,7 @@ async function sweepTronAddress(
   dryRun: boolean,
 ): Promise<{ swept: string; txHash: string } | null> {
   const readOnly = new TronWeb({ fullHost: fullNode });
+  readOnly.setAddress(key.tronAddress);
 
   const contract = await readOnly.contract().at(TRON_USDT_CONTRACT);
   const rawBal   = await contract.balanceOf(key.tronAddress).call();
@@ -300,10 +315,11 @@ async function main() {
   const gasPrivKeyBsc  = process.env['GAS_STATION_BSC_PRIVKEY']  ?? null;
   const gasPrivKeyTron = process.env['GAS_STATION_TRON_PRIVKEY'] ?? null;
 
-  const bscRpc    = process.env['BSC_RPC']        ?? 'https://bsc-dataseed.binance.org';
+  const bscRpc    = process.env['BSC_RPC']        ?? 'https://bsc-dataseed1.defibit.io';
   const tronNode  = process.env['TRON_FULL_NODE'] ?? 'https://api.trongrid.io';
 
-  const provider  = doBsc ? new ethers.JsonRpcProvider(bscRpc) : null;
+  const bscNetwork = ethers.Network.from(56);
+  const provider  = doBsc ? new ethers.JsonRpcProvider(bscRpc, bscNetwork, { staticNetwork: bscNetwork }) : null;
 
   // ── Determine which indices to scan ──────────────────────────────────────
   const startIndex = targetIndex ?? 0;
