@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": "../../backend",
+    "typeRoots": ["../../backend/node_modules/@types"],
+    "paths": {
+      "*": ["../../backend/node_modules/*"]
+    }
+  },
+  "include": ["sweep.ts"],
+  "exclude": []
+}

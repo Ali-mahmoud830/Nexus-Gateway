@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sweep:dry":  "tsx ../tools/sweeper/sweep.ts --dry-run",
+    "sweep:live": "tsx ../tools/sweeper/sweep.ts --live"
   },
   "keywords": ["crypto", "payment-gateway", "usdt", "bsc", "tron", "web3"],
   "author": "",

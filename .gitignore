@@ -86,3 +86,6 @@ coverage/
 *.sqlite3
 data/
 dump/
+
+# ----- Standalone Sweeper secrets -----
+tools/sweeper/.env.sweeper
