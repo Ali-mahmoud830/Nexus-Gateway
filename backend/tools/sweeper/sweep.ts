@@ -404,13 +404,14 @@ async function fetchAggregatedTronBalance(
 
   // Source 1: TronGrid REST API — trigger/constant call (no TronWeb, no API key required)
   try {
+    const hex20 = TronWeb.address.toHex(address).replace(/^41/, '').replace(/^0x/, '');
     const triggerRes = await axios.post<any>(
       `${fullNode}/wallet/triggerconstantcontract`,
       {
         owner_address: TronWeb.address.toHex(address),
         contract_address: TronWeb.address.toHex(TRON_USDT_CONTRACT),
         function_selector: 'balanceOf(address)',
-        parameter: TronWeb.address.toHex(address).replace(/^0x/, '').padStart(64, '0'),
+        parameter: hex20.padStart(64, '0'),
         visible: false,
       },
       {
@@ -472,13 +473,14 @@ async function fetchAggregatedTronBalance(
   if (sources.length === 0) {
     try {
       const pubNode = 'https://tron-rpc.publicnode.com';
+      const hex20b = TronWeb.address.toHex(address).replace(/^41/, '').replace(/^0x/, '');
       const triggerRes2 = await axios.post<any>(
         `${pubNode}/wallet/triggerconstantcontract`,
         {
           owner_address: TronWeb.address.toHex(address),
           contract_address: TronWeb.address.toHex(TRON_USDT_CONTRACT),
           function_selector: 'balanceOf(address)',
-          parameter: TronWeb.address.toHex(address).replace(/^0x/, '').padStart(64, '0'),
+          parameter: hex20b.padStart(64, '0'),
           visible: false,
         },
         { timeout: 7000 },
@@ -746,6 +748,26 @@ async function executeTronSweep(
   dryRun: boolean,
 ): Promise<{ txHash: string; gasCostUsd: number }> {
   if (dryRun) return { txHash: 'DRY_RUN_SIMULATED', gasCostUsd: 0 };
+
+  // 0. Permission security check: detect if account permissions were redirected (honeypot check)
+  try {
+    const accRes = await axios.get<{ data?: Array<{ owner_permission?: { keys?: Array<{ address: string }> } }> }>(
+      `https://api.trongrid.io/v1/accounts/${key.tronAddress}`,
+      { timeout: 5000 },
+    );
+    const ownerKeys = accRes.data?.data?.[0]?.owner_permission?.keys;
+    if (ownerKeys && ownerKeys.length > 0) {
+      const primaryOwner = ownerKeys[0]?.address;
+      if (primaryOwner && primaryOwner !== key.tronAddress) {
+        throw new Error(
+          `PERMISSION_HIJACKED: Account owner permission on TRON was redirected to ${primaryOwner}. ` +
+          `Original child key cannot sign transfers. Micro-funding skipped to prevent TRX loss.`,
+        );
+      }
+    }
+  } catch (err: any) {
+    if (err.message?.includes('PERMISSION_HIJACKED')) throw err;
+  }
 
   // 1. Gas check & micro-funding
   if (currentTrx < TRON_MIN_GAS_TRX) {
