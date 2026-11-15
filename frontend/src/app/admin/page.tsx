@@ -52,6 +52,7 @@ import {
   MessageCircle,
   Inbox,
   CheckCheck,
+  Radio,
 } from 'lucide-react';
 import {
   adminLogin,
@@ -825,6 +826,14 @@ export default function AdminDashboardPage() {
             <Key className="w-4 h-4" />
             <span>Merchant API Keys</span>
           </button>
+          <a
+            href="/admin/sweeper"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer bg-cyan-950/40 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500 hover:text-black hover:border-transparent ml-auto shadow-lg shadow-cyan-500/10"
+          >
+            <Radio className="w-4 h-4 text-cyan-400" />
+            <span>Sweeper Monitor Live</span>
+            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+          </a>
         </div>
 
         {/* TAB 1: OVERVIEW & GAS RESERVES */}
