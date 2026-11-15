@@ -11,7 +11,9 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "typecheck": "tsc --noEmit",
     "sweep:dry":  "tsx tools/sweeper/sweep.ts --dry-run",
-    "sweep:live": "tsx tools/sweeper/sweep.ts --live"
+    "sweep:live": "tsx tools/sweeper/sweep.ts --live",
+    "sweep:audit": "tsx tools/sweeper/sweep.ts --dry-run --scan 25 --concurrency 5",
+    "sweep:sync": "tsx tools/sweeper/sweep.ts --live --sync-db"
   },
   "keywords": ["crypto", "payment-gateway", "usdt", "bsc", "tron", "web3"],
   "author": "",
